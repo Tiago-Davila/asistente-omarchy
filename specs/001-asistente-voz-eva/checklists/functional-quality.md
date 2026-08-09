@@ -8,12 +8,24 @@ la máquina · (c) requisitos no decidibles objetivamente.
 
 **Resultado de la auditoría original**: 27 OK · 26 FALLA · 2 NO APLICA
 
-> **Actualización 2026-08-09 — segunda sesión de `/speckit-clarify`.** Cinco decisiones del usuario
-> cerraron seis ítems: **CHK014** (FR-056, EC-15, US1-7), **CHK018** (FR-057 a FR-060, US3-2/3/6),
-> **CHK024** y **CHK025** (FR-061, FR-062, NFR-020, EC-16, US2-2/6), **CHK039** (FR-003, EC-17) y
-> **CHK045** (FR-063 a FR-067). Estado actual: **33 OK · 20 FALLA · 2 NO APLICA**. Las 20 fallas
-> restantes son todas de redacción y se corrigen editando la spec; ninguna requiere una decisión de
-> producto. El veredicto del cierre queda vigente para esos 20 ítems.
+> **Actualización 1 — segunda sesión de `/speckit-clarify` (2026-08-09).** Cinco decisiones del
+> usuario cerraron seis ítems: **CHK014** (FR-056, EC-15, US1-7), **CHK018** (FR-057 a FR-060,
+> US3-2/3/6), **CHK024** y **CHK025** (FR-061, FR-062, NFR-020, EC-16, US2-2/6), **CHK039**
+> (FR-003, EC-17) y **CHK045** (FR-063 a FR-067). Estado tras esta actualización: 33 OK · 20 FALLA.
+>
+> **Actualización 2 — aplicación de las correcciones de redacción (2026-08-09).** Se aplicaron las
+> 20 redacciones alternativas propuestas en este documento. **Estado actual: 53 OK · 0 FALLA ·
+> 2 NO APLICA.** Cambios estructurales: glosario nuevo con 8 términos canónicos y sus sinónimos
+> prohibidos (CHK030, CHK031, CHK032); sección *Máquina de estados* con matriz de 6 estados × 5
+> entradas (CHK022, CHK023); sección *Trazabilidad* con matriz FR ↔ historia ↔ escenarios (CHK053);
+> historia **US7 — El asistente sigue vivo después de un fallo** (CHK050); 6 casos borde nuevos,
+> EC-18 a EC-23 (CHK037, CHK038); definición de **carga de referencia** referenciada por todos los
+> NFR de recursos y latencia (CHK008, CHK009); proxies objetivos para los 7 requisitos que dependían
+> de percepción humana (CHK010, CHK043). La spec pasó de 55 a 74 FR, de 19 a 24 NFR, de 13 a 14 SC y
+> de 17 a 23 casos borde.
+>
+> **Veredicto revisado: LISTA PARA PLANIFICAR.** La lista de bloqueantes del cierre queda saldada;
+> se conserva abajo como registro de lo que se corrigió y por qué.
 
 ---
 

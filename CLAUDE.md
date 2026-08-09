@@ -136,25 +136,34 @@ Un límite más estricto satisface el Principio VI sin necesitar excepción docu
   las frases marcadas como "debe rechazarse". **Ejecutar una acción incorrecta es más grave que no
   ejecutar ninguna.**
 - **Concurrencia** (NFR-004): al menos un núcleo libre en todo momento; nunca saturar los 4.
-- **Catálogo cerrado de acciones** (FR-014 a FR-023): abrir aplicación, abrir aplicación en espacio
-  de trabajo, abrir URL, abrir URL en espacio de trabajo, búsqueda web, cambiar de espacio de
-  trabajo, mover ventana activa, operar ventana activa (cerrar / pantalla completa / flotante),
-  volumen y medios, y acciones propias declaradas en configuración.
+- **Catálogo cerrado de acciones** (FR-014 a FR-023, FR-068, FR-069): abrir aplicación, abrir
+  aplicación en espacio de trabajo, abrir URL, abrir URL en espacio de trabajo, búsqueda web,
+  cambiar de espacio de trabajo, mover ventana activa, cerrar ventana activa (**la única
+  destructiva del catálogo base**), pantalla completa, flotante, volumen y medios, y acciones
+  propias declaradas en configuración.
+- **Terminología canónica** (glosario de la spec): **catálogo de acciones** es el registro cerrado;
+  **bitácora** es el registro de turnos; **superficie de estado** es la única superficie gráfica.
+  No usar "registro" a secas ni "interfaz gráfica": son sinónimos prohibidos.
 - **Fuera de alcance de la fase 1**: wake word, LLM generativo, síntesis de voz, conversación
   multi-turno con memoria, consultas que devuelven información, control de aplicaciones más allá de
   abrirlas, múltiples usuarios, empaquetado y distribución.
 
-**Decisiones abiertas — no asumir un comportamiento**
+**Decisiones ya tomadas — no reabrir sin pasar por `/speckit-clarify`**
 
-Tres ambigüedades siguen sin resolver y bloquean `/speckit-plan`. No inventar una respuesta:
+Las once decisiones de las dos sesiones de clarificación están en la sección *Clarifications* de la
+spec, con su requisito y su escenario. Las de mayor impacto para quien implemente:
 
-- **AMB-01**: qué acciones concretas del catálogo se consideran destructivas.
-- **AMB-02**: si la aplicación pedida ya está abierta, enfocar la existente o abrir otra instancia.
-- **AMB-03**: cómo se distingue una búsqueda web de la apertura de un sitio cuando el usuario dice
-  el nombre de un sitio.
+- Ante **intención ambigua entre dos acciones**, se rechaza sin desempatar por ningún criterio
+  (FR-056). Desempatar por puntaje está explícitamente prohibido.
+- La **confirmación** acepta teclado **o** voz (FR-057), lo que obliga a mantener el micrófono
+  abierto durante la ventana de 10 s (FR-060).
+- **Aplicación ya abierta**: se enfoca la existente, nunca se duplica (FR-014); si se nombró un
+  espacio de trabajo, la ventana se mueve ahí (FR-015).
+- Topes de estado: `escuchando` 10 s sin voz / 20 s duro, `procesando` 10 s, confirmación 10 s,
+  `error` 3 s (NFR-023). Ningún estado sin salida acotada.
 
-Otras cuatro (AMB-04 a AMB-07) están resueltas con un supuesto documentado en la spec, no con una
-decisión firme. Antes de apoyarse en cualquiera, leer su fundamento en la spec.
+Tres supuestos (AMB-04 a AMB-06) siguen siendo supuestos míos, no decisiones del usuario. Antes de
+apoyarse en cualquiera, leer su fundamento en la spec.
 
 ## Flujo de trabajo: Spec Kit
 
