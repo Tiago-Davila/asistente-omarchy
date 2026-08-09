@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain — **diferido a propósito**, ver Notas
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -35,13 +35,16 @@
 
 ## Notas
 
-**Marcadores de clarificación pendientes (intencional).** El usuario pidió explícitamente
-"ambigüedades a marcar explícitamente para resolver en la fase de aclaración". Se identificaron 7
-y ninguna se descartó: AMB-01, AMB-02 y AMB-03 quedan abiertas como bloqueantes (AMB-01 con
-marcador inline en FR-028); AMB-04 a AMB-07 quedan resueltas con un supuesto documentado y
-fundamentado, revisable en `/speckit-clarify`. Este ítem se marca incompleto para reflejar el
-estado real, no porque falte trabajo: resolverlas acá duplicaría la fase de aclaración que la
-constitución exige.
+**Clarificación completada (sesión 2026-08-09).** Las 3 ambigüedades bloqueantes se resolvieron por
+decisión del usuario y quedaron incorporadas a los requisitos: AMB-01 → FR-028 y FR-054; AMB-03 →
+FR-016, FR-018 y EC-13; AMB-02 → FR-014 y EC-06. La sesión agregó además dos decisiones que la
+spec no cubría: el caso de aplicación ya abierta en otro espacio de trabajo (FR-015, FR-017, EC-14)
+y el plazo de expiración de una confirmación pendiente (FR-055, NFR-019). No queda ningún marcador
+`[NEEDS CLARIFICATION]` en la spec.
+
+**Supuestos sin confirmar.** AMB-04 a AMB-07 siguen apoyadas en un supuesto documentado y
+fundamentado, no en una decisión del usuario. No bloquean la planificación, pero conviene
+revisarlas si el diseño se apoya fuerte en alguna.
 
 **Conflicto constitucional resuelto.** La US4 y los FR-034 a FR-039 contradecían el Principio X de
 la constitución v1.0.0, que prohibía toda interfaz gráfica en fase 1. La enmienda a **v2.0.0**

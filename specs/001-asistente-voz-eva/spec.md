@@ -4,7 +4,7 @@
 
 **Created**: 2026-08-09
 
-**Status**: Draft — requiere `/speckit-clarify` antes de planificar
+**Status**: Clarificada — sin ambigüedades bloqueantes; lista para `/speckit-plan`
 
 **Input**: Descripción del usuario: asistente de voz local para escritorio Linux que interpreta
 comandos hablados en español rioplatense y ejecuta acciones sobre el entorno de escritorio,
@@ -46,6 +46,18 @@ límite más estricto satisface el Principio VI sin necesitar excepción documen
 | CPU en reposo | < 3% de un núcleo | **< 1%** (NFR-001) |
 | RSS en reposo | < 250 MB | **< 150 MB** (NFR-002) |
 | RAM pico por turno | ≤ 1.5 GB | ≤ 1,5 GB (NFR-003) |
+
+---
+
+## Clarifications
+
+### Session 2026-08-09
+
+- Q: ¿Qué acciones del catálogo requieren que el asistente pida confirmación antes de ejecutarlas? → A: Cerrar la ventana activa (FR-021), más toda acción propia (FR-023) que no declare explícitamente `destructiva: false` en configuración.
+- Q: Cuando el usuario dice el nombre de un sitio, ¿cómo decide Eva entre abrir el sitio y hacer una búsqueda web? → A: El verbo manda y el sitio debe estar declarado: "abrí X" abre X si está en sitios declarados y si no rechaza; "buscá X" siempre hace búsqueda web con X como término.
+- Q: Si el usuario pide abrir una aplicación que ya está abierta, ¿se enfoca la existente o se abre otra instancia? → A: Siempre se enfoca la instancia existente; si hay varias, la más reciente. Nunca se abre una segunda instancia.
+- Q: Si se pide abrir una aplicación en un espacio de trabajo determinado y ya está abierta en otro, ¿qué hace el sistema? → A: Mueve la ventana existente al espacio de trabajo pedido y la enfoca ahí.
+- Q: ¿Cuánto espera el sistema una confirmación pendiente antes de cancelarla sola? → A: 10 segundos.
 
 ---
 
@@ -134,8 +146,9 @@ dejan el sistema sin cambios.
    **Then** la acción se ejecuta y se reporta el resultado.
 3. **Given** el asistente esperando confirmación, **When** el usuario cancela, **Then** la acción
    no se ejecuta y el asistente vuelve a reposo.
-4. **Given** el asistente esperando confirmación, **When** vence el tiempo de espera sin respuesta,
-   **Then** la acción no se ejecuta y el asistente vuelve a reposo.
+4. **Given** el asistente esperando confirmación, **When** pasan 10 segundos sin respuesta,
+   **Then** la acción no se ejecuta, el asistente vuelve a reposo y queda disponible para el
+   siguiente turno.
 5. **Given** una acción cuya clasificación de destructividad no está declarada, **When** el usuario
    la pide, **Then** el asistente la trata como destructiva y pide confirmación.
 
@@ -233,13 +246,15 @@ Cada caso borde tiene un comportamiento esperado declarado y verificable:
 | EC-03 | El usuario dice algo que no corresponde a ninguna acción conocida | Rechazo con motivo "acción desconocida". Nunca se ejecuta la acción más parecida. |
 | EC-04 | El usuario nombra una aplicación no instalada o no declarada | Rechazo con motivo distinguible: "no declarada" (falta en configuración) o "no disponible" (declarada pero ausente del sistema). |
 | EC-05 | El usuario indica un espacio de trabajo fuera del rango válido | Rechazo por parámetro fuera de rango, indicando el rango válido. No se recorta ni se aproxima al valor más cercano. |
-| EC-06 | La aplicación pedida ya está abierta | Comportamiento definido por [AMB-02]; en todos los casos el resultado se reporta al usuario, sin fallar en silencio. |
+| EC-06 | La aplicación pedida ya está abierta | Se enfoca la instancia existente, la más reciente si hay varias, y nunca se abre una segunda (FR-014). El resultado se reporta al usuario, sin fallar en silencio. |
 | EC-07 | El usuario activa mientras un turno anterior está en curso | La segunda activación no corrompe el turno en curso. El sistema aplica una política única y declarada: ignorar la nueva activación mientras haya una en curso, informándolo. |
 | EC-08 | El gestor de ventanas no responde o devuelve error | El turno termina en estado de error con motivo "fallo al ejecutar", el daemon sigue vivo, y el registro conserva el intento. |
 | EC-09 | El sistema está bajo carga alta y se excede el presupuesto de latencia | La acción se completa igual si ya fue validada, el exceso se registra como tal, y el usuario recibe feedback de que el turno tardó más de lo previsto. Nunca se aborta a mitad de una acción ya iniciada. |
 | EC-10 | La transcripción devuelve texto parcial o cortado | Se trata como cualquier texto: si resuelve a una acción con todos sus parámetros válidos, se ejecuta; si no, se rechaza. No se completa ni se adivina el texto faltante. |
 | EC-11 | El usuario cancela mientras espera confirmación | La acción no se ejecuta, el sistema vuelve a reposo, y el registro deja constancia de la cancelación. |
 | EC-12 | El dispositivo de audio cambia en medio de la captura | El turno en curso termina en error de captura sin ejecutar nada; el asistente se recupera y queda operativo para la siguiente activación sin reiniciar el daemon. |
+| EC-13 | El usuario pide abrir un sitio que no está declarado en configuración | Rechazo con motivo "sitio no declarado" (FR-016). No se sustituye por una búsqueda web, aunque el nombre sea buscable. |
+| EC-14 | El usuario pide abrir en un espacio de trabajo una aplicación que ya está abierta en otro | La ventana existente se mueve al espacio pedido y se enfoca ahí (FR-015). No se abre una segunda instancia ni se descarta el espacio pedido. |
 
 ---
 
@@ -271,11 +286,11 @@ Cada caso borde tiene un comportamiento esperado declarado y verificable:
 
 **Acciones disponibles**
 
-- **FR-014**: El sistema MUST poder abrir una aplicación declarada en configuración.
-- **FR-015**: El sistema MUST poder abrir una aplicación declarada en un espacio de trabajo indicado.
-- **FR-016**: El sistema MUST poder abrir una URL en el navegador declarado.
-- **FR-017**: El sistema MUST poder abrir una URL en un espacio de trabajo indicado.
-- **FR-018**: El sistema MUST poder realizar una búsqueda web con un texto dictado por el usuario.
+- **FR-014**: El sistema MUST poder abrir una aplicación declarada en configuración. Si la aplicación ya tiene una ventana abierta, el sistema MUST enfocar la instancia existente —la más reciente si hay varias— y MUST NOT abrir una segunda instancia.
+- **FR-015**: El sistema MUST poder abrir una aplicación declarada en un espacio de trabajo indicado. Si la aplicación ya está abierta en otro espacio, el sistema MUST mover la ventana existente al espacio indicado y enfocarla ahí, y MUST NOT abrir una segunda instancia ni descartar el espacio pedido.
+- **FR-016**: El sistema MUST poder abrir una URL en el navegador declarado. La intención de apertura se resuelve **únicamente por el verbo**: si el sitio nombrado no está declarado en configuración, el sistema MUST rechazar con motivo "sitio no declarado" y MUST NOT sustituir la apertura por una búsqueda web.
+- **FR-017**: El sistema MUST poder abrir una URL en un espacio de trabajo indicado. Si el navegador ya tiene una ventana abierta en otro espacio, aplica la misma regla que FR-015: la URL se abre en el navegador existente y su ventana se mueve al espacio indicado y se enfoca.
+- **FR-018**: El sistema MUST poder realizar una búsqueda web con un texto dictado por el usuario. La intención de búsqueda MUST resolverse siempre a búsqueda web con el texto dictado como término, aunque ese texto coincida con un sitio declarado.
 - **FR-019**: El sistema MUST poder cambiar al espacio de trabajo indicado.
 - **FR-020**: El sistema MUST poder mover la ventana activa a un espacio de trabajo indicado.
 - **FR-021**: El sistema MUST poder operar sobre la ventana activa: cerrarla, ponerla en pantalla completa y alternar su estado flotante.
@@ -288,7 +303,9 @@ Cada caso borde tiene un comportamiento esperado declarado y verificable:
 - **FR-025**: El sistema MUST NOT ejecutar comandos arbitrarios provenientes de la transcripción ni de ninguna otra entrada del usuario.
 - **FR-026**: El sistema MUST exigir confirmación explícita del usuario antes de ejecutar una acción marcada como destructiva o irreversible, mostrando previamente la acción concreta y sus parámetros.
 - **FR-027**: El sistema MUST NOT inferir ni asumir la confirmación a partir del contexto, del turno anterior ni del silencio del usuario.
-- **FR-028**: El sistema MUST tratar como destructiva toda acción cuya clasificación no esté declarada. [NEEDS CLARIFICATION: ¿qué acciones concretas del catálogo FR-014 a FR-023 se consideran destructivas? Ver AMB-01.]
+- **FR-028**: El sistema MUST clasificar como destructivas exactamente estas acciones, y MUST pedir confirmación antes de ejecutarlas: cerrar la ventana activa (FR-021), y toda acción propia (FR-023) que no declare explícitamente `destructiva: false` en configuración. El resto del catálogo base (FR-014 a FR-020, FR-022) MUST ejecutarse sin confirmación.
+- **FR-054**: La configuración MUST permitir declarar la destructividad de cada acción propia. Ante ausencia de esa declaración, el sistema MUST tratar la acción como destructiva.
+- **FR-055**: El sistema MUST cancelar automáticamente una confirmación pendiente tras 10 segundos sin respuesta del usuario, sin ejecutar la acción y volviendo a reposo.
 
 **Feedback al usuario**
 
@@ -379,6 +396,7 @@ Cada caso borde tiene un comportamiento esperado declarado y verificable:
 
 - **NFR-017**: El usuario MUST poder ejecutar cada acción del catálogo sin memorizar una sintaxis exacta: al menos 3 fraseos naturales distintos por acción MUST resolver correctamente.
 - **NFR-018**: El usuario MUST poder determinar el estado del asistente sin interrumpir su trabajo ni cambiar de ventana.
+- **NFR-019**: Una confirmación pendiente MUST expirar a los 10 segundos sin respuesta. El asistente MUST NOT quedar bloqueado en espera de confirmación más allá de ese plazo.
 
 ---
 
@@ -404,27 +422,15 @@ Cada caso borde tiene un comportamiento esperado declarado y verificable:
 
 ## Ambigüedades identificadas
 
-El usuario pidió marcar las ambigüedades de forma explícita. Se identificaron 7. La plantilla de
-Spec Kit limita a 3 los marcadores `[NEEDS CLARIFICATION]` incrustados en los requisitos, así que
-las 3 de mayor impacto quedan marcadas como bloqueantes y las 4 restantes se resuelven con un
-supuesto razonable documentado, revisable en `/speckit-clarify`. Ninguna se perdió.
+Se identificaron 7 ambigüedades durante `/speckit-specify`. Las 3 bloqueantes (AMB-01, AMB-02,
+AMB-03) quedaron resueltas por decisión del usuario en la sesión de `/speckit-clarify` del
+2026-08-09; su resolución está en la sección *Clarifications* y ya está incorporada a los
+requisitos. **No quedan ambigüedades bloqueantes.**
 
-### Bloqueantes — requieren decisión antes de `/speckit-plan`
+Las 4 restantes siguen apoyadas en un supuesto documentado, no en una decisión firme. Antes de
+apoyarse en cualquiera, leer su fundamento.
 
-- **AMB-01** *(referida en FR-028)* — **¿Qué acciones se consideran destructivas?** Del catálogo
-  FR-014 a FR-023, "cerrar la ventana activa" es la única candidata evidente, pero las acciones
-  propias del usuario (FR-023) pueden serlo y el sistema no puede saberlo solo. Impacta seguridad y
-  define si cada acción propia debe declarar su destructividad de forma obligatoria.
-- **AMB-02** *(referida en FR-014 y EC-06)* — **Si la aplicación pedida ya está abierta: ¿enfocar
-  la instancia existente o abrir una nueva?** Cambia el resultado observable de la acción más usada
-  del catálogo, y determina si la acción necesita un parámetro adicional para elegir entre ambos
-  comportamientos.
-- **AMB-03** *(referida en FR-016 y FR-018)* — **¿Cómo se distingue una búsqueda web de la apertura
-  de un sitio cuando el usuario dice el nombre de un sitio?** "abrí YouTube" y "buscá YouTube"
-  pueden resolver a acciones distintas, y sin una regla declarada el sistema tendría que adivinar,
-  lo que el Principio XVI prohíbe.
-
-### Resueltas con supuesto documentado — confirmar en `/speckit-clarify`
+### Resueltas con supuesto documentado — no confirmadas por el usuario
 
 - **AMB-04** — **"Pestaña" en el habla del usuario.** Supuesto: significa siempre *espacio de
   trabajo del gestor de ventanas*. Fundamento: el control de pestañas del navegador exige operar
@@ -433,7 +439,9 @@ supuesto razonable documentado, revisable en `/speckit-clarify`. Ninguna se perd
 - **AMB-05** — **Espacio de trabajo no indicado.** Supuesto: se usa el espacio de trabajo actual,
   salvo que la aplicación declare uno propio en configuración, en cuyo caso gana el declarado.
   Fundamento: es el comportamiento menos sorprendente y no requiere que el sistema busque un
-  espacio "libre", noción que además no está definida.
+  espacio "libre", noción que además no está definida. Nota: si la aplicación ya está abierta,
+  FR-014 manda y se enfoca la instancia existente donde esté; el espacio declarado en configuración
+  solo aplica al abrirla por primera vez.
 - **AMB-06** — **Interfaz gráfica por pedido explícito.** Supuesto: la interfaz aparece únicamente
   por el ciclo automático del turno; no hay una acción para invocarla por separado. Fundamento:
   FR-037 exige que sea visible solo cuando hay algo que comunicar, y una invocación manual sin
