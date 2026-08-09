@@ -1,29 +1,45 @@
 <!--
 Sync Impact Report
 ==================
-Version change: TEMPLATE (sin versionar) → 1.0.0
-Bump rationale: Primera ratificación. Se sustituyen todos los placeholders del
-template por los 17 principios obligatorios definidos para el proyecto Eva.
+Version change: 1.0.0 → 2.0.0
+Bump rationale: MAJOR. El Principio X se redefine de forma incompatible: pasa de
+prohibir toda interfaz gráfica en fase 1 a permitir una superficie mínima de
+estado bajo cinco condiciones acumulativas. Además se remueve el modelo de
+lenguaje del alcance de fase 1, lo que restringe los Principios IV y V respecto
+de la versión anterior. Ambos son cambios incompatibles hacia atrás según la
+política de versionado de este documento.
 
 Modified principles:
-- [PRINCIPLE_1_NAME] → I. La Especificación Manda
-- [PRINCIPLE_2_NAME] → II. Núcleo Desacoplado de la Voz
-- [PRINCIPLE_3_NAME] → III. Ejecución por Registry Cerrado (NO NEGOCIABLE)
-- [PRINCIPLE_4_NAME] → IV. Determinismo Antes que Modelo
-- [PRINCIPLE_5_NAME] → V. Degradación Elegante
-- (nuevos) VI–XVII: Presupuesto de Recursos, Latencia, Puertos y Adaptadores,
-  Separación de Responsabilidades, Alcance de Fase 1, Cien por Ciento Local,
-  Confirmación de Acciones Destructivas, Configuración Declarativa, Tests
-  Obligatorios, Observabilidad por Turno, Falla Ruidosa, Especificación Antes
-  que Código
+- IV. Determinismo Antes que Modelo — la resolución de intención de fase 1 pasa a
+  ser enteramente determinística; el fallback por modelo queda como punto de
+  extensión declarado y no implementado.
+- V. Degradación Elegante — se ajusta la lista de componentes opcionales de fase 1
+  (TTS y wake word); la cláusula sobre el modelo de lenguaje pasa a ser condicional
+  a su futura incorporación.
+- IX. Separación de Responsabilidades — la capa de interfaz incorpora la superficie
+  mínima de estado.
+- X. Alcance de Fase 1: Sin Interfaz Gráfica → X. Alcance de Fase 1: Interfaz Mínima
+  de Estado. Redefinición incompatible.
 
-Added sections:
-- Restricciones Técnicas y Presupuestos (reemplaza [SECTION_2_NAME])
-- Flujo de Desarrollo y Puertas de Calidad (reemplaza [SECTION_3_NAME])
+Modified sections:
+- Restricciones Técnicas y Presupuestos — la tabla se alinea con el texto del
+  Principio VI: RAM del stack completo pasa de ≤ 3 GB a ≤ 1.5 GB, y la fila del
+  modelo LLM pasa de "≤ 4B parámetros, cuantizado" a "fuera de la fase 1".
+- Flujo de Desarrollo y Puertas de Calidad — la puerta "no se introduce código de
+  interfaz gráfica" se reemplaza por la verificación de las condiciones del nuevo
+  Principio X, y se agrega una puerta de determinismo para el Principio IV.
 
+Added sections: ninguna
 Removed sections: ninguna
 
 Deferred TODOs: ninguno
+
+Artefactos dependientes desincronizados por esta enmienda (fuera del alcance de
+este comando, requieren actualización aparte):
+- CLAUDE.md — repite los presupuestos viejos (≤ 3 GB, LLM ≤ 4B) y afirma que la
+  fase 1 no lleva interfaz gráfica.
+- specs/001-asistente-voz-eva/spec.md — su sección de conflicto constitucional
+  queda obsoleta: el conflicto que documenta está resuelto por esta versión.
 -->
 
 # Constitución de Eva
@@ -68,18 +84,22 @@ máquina del usuario no es aceptable bajo ninguna justificación de conveniencia
 
 ### IV. Determinismo Antes que Modelo
 
-Las intenciones frecuentes DEBEN resolverse con reglas determinísticas. El modelo de lenguaje
-es fallback, no primera opción. Si una intención se puede expresar como regla, DEBE expresarse
-como regla.
+Las intenciones frecuentes DEBEN resolverse con reglas determinísticas. Si una intención se puede
+expresar como regla, DEBE expresarse como regla. **En fase 1 la resolución de intención es
+enteramente determinística: no hay modelo de lenguaje generativo.** El fallback por modelo es un
+punto de extensión que DEBE quedar declarado y NO DEBE implementarse en esta fase; cuando se
+incorpore, será fallback y nunca primera opción.
 
 **Racional**: las reglas son más rápidas, más baratas, reproducibles y testeables que una
-inferencia.
+inferencia. Sacar el modelo de la fase 1 elimina de entrada al mayor consumidor de RAM y de
+latencia del stack, que son los dos presupuestos más ajustados del proyecto.
 
 ### V. Degradación Elegante
 
-Si el modelo de lenguaje no está disponible, la capa determinística DEBE seguir funcionando.
-Ningún componente opcional (LLM, TTS, wake word) PUEDE ser condición de arranque del daemon.
-La ausencia de un componente opcional se reporta, no aborta.
+Ningún componente opcional PUEDE ser condición de arranque del daemon. La ausencia de un
+componente opcional se reporta, no aborta. En fase 1 los componentes opcionales son TTS y wake
+word, ambos fuera de alcance. Cuando se incorpore el modelo de lenguaje, la capa determinística
+DEBE seguir funcionando sin él.
 
 **Racional**: el daemon corre en la laptop de trabajo del usuario; un fallo parcial no puede
 volverse un fallo total.
@@ -90,7 +110,7 @@ El sistema corre en una laptop que el usuario está usando para otra cosa. Restr
 
 - En reposo: menos de 3% de un core y menos de 250 MB de RSS.
 - Stack completo cargado: no más de 1.5 GB de RAM.
-- Los modelos DEBEN estar cuantizados. STT no mayor a `whisper small`. LLM fuera de la fase 1. 
+- Los modelos DEBEN estar cuantizados. STT no mayor a `whisper small`. LLM fuera de la fase 1.
 - Los componentes pesados se cargan bajo demanda, o se declaran explícitamente como residentes
   con su costo justificado.
 
@@ -123,22 +143,38 @@ Las capas y sus responsabilidades son:
 - **dominio**: intenciones, herramientas, reglas de validación
 - **aplicación**: orquestación del turno y máquina de estados
 - **infraestructura**: audio, modelos, IPC, integración con Hyprland
-- **interfaz**: CLI y notificaciones
+- **interfaz**: CLI, notificaciones y la superficie mínima de estado del Principio X
 
 El dominio NO DEBE conocer audio, ni modelos, ni Hyprland. Las dependencias apuntan hacia
 adentro; una violación de dirección de dependencia bloquea el merge.
 
 **Racional**: es la condición estructural que hace cumplibles los principios II y VIII.
 
-### X. Alcance de Fase 1: Sin Interfaz Gráfica
+### X. Alcance de Fase 1: Interfaz Mínima de Estado
 
-El feedback al usuario en fase 1 es por notificación del sistema, salida estándar y código de
-retorno. Queda explícitamente fuera de esta fase todo lo relacionado con overlays, layer-shell,
-widgets, barra de estado y OSD. La arquitectura DEBE dejar el punto de extensión declarado, y
-NO DEBE implementarlo. La interfaz gráfica se especificará como fase aparte.
+El feedback al usuario en fase 1 es por notificación del sistema, salida estándar, código de
+retorno y **una única superficie gráfica mínima de estado**. Esa superficie está permitida solo
+si cumple estas cinco condiciones, que son acumulativas y verificables:
+
+1. Muestra únicamente el estado del turno, el texto entendido y la acción resuelta.
+2. NO DEBE tomar el foco del teclado en ningún momento.
+3. NO DEBE tapar ni desplazar la ventana en la que el usuario está trabajando.
+4. DEBE ser visible solo cuando hay algo que comunicar, y desaparecer sola al terminar el turno.
+5. El sistema DEBE seguir siendo completamente funcional con esa superficie deshabilitada,
+   degradando el feedback a los canales no gráficos.
+
+Si alguna de las cinco deja de cumplirse, la superficie deja de estar permitida.
+
+Queda fuera de la fase 1 todo lo demás: barra de estado permanente, widgets, panel de
+configuración, historial navegable, dashboards y cualquier ventana que el usuario pueda enfocar.
+La arquitectura DEBE dejar esos puntos de extensión declarados, y NO DEBE implementarlos.
 
 **Racional**: la UI es el sumidero de esfuerzo clásico que impide que el núcleo llegue a
-funcionar.
+funcionar, y por eso la fase 1 la prohibía por completo. La excepción se admite porque sin
+feedback visible el usuario no sabe si el asistente lo escuchó, lo que anula la usabilidad de un
+asistente activado por atajo. El costo queda acotado por las cinco condiciones: la condición 5 en
+particular garantiza que el núcleo nunca dependa de la superficie gráfica, que es lo que el
+principio original protegía.
 
 ### XI. Cien por Ciento Local
 
@@ -214,9 +250,10 @@ Estas restricciones son verificables y DEBEN comprobarse antes de aceptar una fe
 | --- | --- | --- |
 | CPU en reposo | < 3% de un core | medición sostenida del daemon ocioso |
 | RSS en reposo | < 250 MB | medición del proceso daemon ocioso |
-| RAM stack completo | ≤ 3 GB | medición con todos los modelos cargados |
+| RAM stack completo | ≤ 1.5 GB | medición con todos los modelos cargados |
 | Modelo STT | ≤ `whisper small`, cuantizado | declarado en el plan de la feature |
-| Modelo LLM | ≤ 4B parámetros, cuantizado | declarado en el plan de la feature |
+| Modelo LLM | fuera de la fase 1 | ausencia verificada en el plan de la feature |
+| Superficie gráfica | solo la del Principio X, con sus 5 condiciones | revisión contra el Principio X |
 | Latencia por etapa | presupuesto declarado por etapa | registro estructurado por turno (XV) |
 | Latencia total | cota explícita fin de habla → acción | registro estructurado por turno (XV) |
 | Dependencias de red en runtime | cero | revisión de dependencias e integración |
@@ -250,7 +287,9 @@ Puertas de calidad para aceptar una implementación:
 - El presupuesto de recursos y de latencia se mide, no se asume (VI, VII).
 - No se introducen dependencias de red en runtime (XI).
 - El dominio no importa audio, modelos ni Hyprland (IX).
-- No se introduce código de interfaz gráfica (X).
+- La resolución de intención no depende de un modelo generativo (IV).
+- La superficie gráfica cumple las cinco condiciones del Principio X, y el sistema sigue siendo
+  funcional con ella deshabilitada (X).
 
 ## Governance
 
@@ -273,4 +312,4 @@ explícitamente el cumplimiento de los principios aplicables. Un incumplimiento 
 documentada bloquea la aceptación. Las excepciones se documentan en el plan de la feature
 afectada, con justificación y alcance acotado; una excepción no se generaliza a otras features.
 
-**Version**: 1.0.0 | **Ratified**: 2026-08-09 | **Last Amended**: 2026-08-09
+**Version**: 2.0.0 | **Ratified**: 2026-08-09 | **Last Amended**: 2026-08-09
