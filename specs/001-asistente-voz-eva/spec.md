@@ -34,9 +34,17 @@ por una de estas dos vías:
   posterior.
 
 Ninguna otra restricción del usuario entra en conflicto con la constitución. Los presupuestos de
-recursos que pide el usuario (<1% de un núcleo, <150 MB en reposo, ≤1,5 GB por turno) son **más
-estrictos** que los constitucionales (<3%, <250 MB, ≤3 GB), y un límite más estricto cumple el
-principio VI sin necesitar excepción.
+recursos que pide el usuario (<1% de un núcleo, <150 MB en reposo, ≤1,5 GB por turno) son iguales
+o **más estrictos** que los constitucionales, y un límite más estricto cumple el Principio VI sin
+necesitar excepción.
+
+**Aviso: la constitución está internamente inconsistente en este momento.** El texto del Principio
+VI dice "Stack completo cargado: no más de 1.5 GB de RAM" y "LLM fuera de la fase 1", pero la tabla
+de Restricciones Técnicas del mismo documento sigue diciendo `RAM stack completo ≤ 3 GB` y
+`Modelo LLM ≤ 4B parámetros`. Los dos enunciados del mismo límite quedaron desincronizados. Hay que
+alinearlos vía `/speckit-constitution` (es un endurecimiento de límite y una remoción de alcance:
+bump MINOR o MAJOR según cómo se lea la remoción del LLM). Lo mismo aplica a
+[CLAUDE.md](../../CLAUDE.md), que repite los valores viejos.
 
 ---
 
