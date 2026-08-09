@@ -11,21 +11,26 @@ Los escenarios están ordenados por dependencia. **Q0 y Q1 hay que correrlos ant
 
 ---
 
-## Q0 · Verificar el hardware — **bloqueante, antes de todo**
+## Q0 · Confirmar el hardware y el techo de CPU
 
-Resuelve la discrepancia de conteo de hilos declarada en plan.md, bloqueo 2.
+El conteo de hilos quedó cerrado en la clarificación del 2026-08-09: **4 núcleos físicos, 8 hilos
+lógicos, SMT activo**. Este escenario solo confirma el dato y verifica que el techo de CPU esté
+efectivamente aplicado.
 
 ```bash
 lscpu | grep -E 'Model name|^CPU\(s\)|Thread|Core'
 free -m
+systemctl --user show eva.service -p CPUQuotaPerSecUSec
 ```
 
-**Esperado**: modelo `AMD Ryzen 5 3450U`. Si `Thread(s) per core: 1`, el plan es correcto tal como
-está. Si dice `2`, hay 8 hilos y todos los presupuestos de CPU tienen más margen del asumido —
-anotarlo en research.md y seguir, no hay que replanificar.
+**Esperado**: `AMD Ryzen 5 3450U`, `CPU(s): 8`, `Thread(s) per core: 2`, `Core(s) per socket: 4`.
 
-**Esperado de `free`**: ~8000 MB totales. Con navegador y editor abiertos, `available` debería
-rondar los 3000 MB, que es la premisa del encargo.
+**Esperado de `free`**: ~8000 MB totales; con navegador y editor abiertos, `available` alrededor de
+3000 MB.
+
+**Esperado del techo**: `CPUQuotaPerSecUSec=2s`, que es `CPUQuota=200%` — dos hilos lógicos, es
+decir un núcleo físico (NFR-004). Si aparece `infinity`, el techo no está aplicado y NFR-004 no se
+está cumpliendo aunque el consumo medido parezca bajo.
 
 ---
 

@@ -135,7 +135,10 @@ Un límite más estricto satisface el Principio VI sin necesitar excepción docu
   frases de referencia; <1% de ejecución de una acción distinta de la pedida; 100% de rechazo sobre
   las frases marcadas como "debe rechazarse". **Ejecutar una acción incorrecta es más grave que no
   ejecutar ninguna.**
-- **Concurrencia** (NFR-004): al menos un núcleo libre en todo momento; nunca saturar los 4.
+- **CPU durante el turno** (NFR-004): como máximo **un núcleo físico** —dos de los ocho hilos
+  lógicos, el 25% de la máquina—, aplicado con `CPUQuota=200%` en systemd. `CPUQuota` cuenta hilos
+  lógicos, así que 200% son dos hilos = un núcleo, no dos núcleos.
+- **Bitácora** (FR-076): rotación diaria, retención de 30 días, plazo configurable.
 - **Catálogo cerrado de acciones** (FR-014 a FR-023, FR-068, FR-069): abrir aplicación, abrir
   aplicación en espacio de trabajo, abrir URL, abrir URL en espacio de trabajo, búsqueda web,
   cambiar de espacio de trabajo, mover ventana activa, cerrar ventana activa (**la única

@@ -84,6 +84,11 @@ derivados.
 - Q: ¿Cuál es el tope duro de captura cuando sí entra audio y la detección de fin de habla no corta? → A: 20 segundos desde la activación.
 - Q: ¿Qué pasa si el usuario cancela cuando la acción ya empezó a ejecutarse? → A: La cancelación se ignora: la acción se completa, se informa que ya estaba en curso, y no se intenta revertir ni abortar a mitad.
 - Q: ¿De qué tamaño es el conjunto de frases de referencia? → A: Al menos 300 entradas: unas 20 por acción del catálogo más al menos 80 marcadas "debe rechazarse".
+- Q: ¿Cuánta CPU puede usar el asistente como máximo durante un turno? → A: Un núcleo físico de los cuatro, aplicado por mecanismo del sistema operativo. Se elimina la cláusula del 10% por núcleo, que duplicaba NFR-001.
+- Q: ¿Cuántos hilos de CPU tiene la laptop? → A: 4 núcleos físicos y 8 hilos (Dell Vostro 3405, Ryzen 5 3450U con SMT activo). La spec ya lo decía bien; el dato del encargo del plan era erróneo.
+- Q: ¿Qué hace el sistema si dos entradas de configuración declaran el mismo alias? → A: Rechaza las entradas en conflicto al cargar, reportando el alias duplicado; el resto de la configuración sigue operando.
+- Q: ¿Cuánto tiempo se conservan las entradas de la bitácora? → A: 30 días, con rotación diaria y borrado del archivo más viejo. El plazo es configurable.
+- Q: ¿Cuál es el tiempo máximo por cuadro de la ventana enfocada mientras el asistente procesa? → A: 33 ms en el percentil 99, el valor actual. Se confirma como decisión del usuario, no como valor heredado de la reescritura.
 
 ---
 
@@ -277,6 +282,9 @@ recargando, y verificando que una frase que antes se rechazaba ahora resuelve co
 6. **Given** un turno en curso, **When** la configuración se recarga a mitad del turno, **Then** el
    turno se completa contra el catálogo vigente al resolver la intención, y la configuración nueva
    se aplica recién a partir del turno siguiente.
+7. **Given** dos aplicaciones que declaran el alias "term", **When** el asistente carga la
+   configuración, **Then** ambas quedan fuera del catálogo, se reporta el alias duplicado
+   nombrando las dos entradas, y el resto de las aplicaciones sigue disponible.
 
 ---
 
@@ -363,6 +371,7 @@ Cada caso borde tiene comportamiento esperado declarado y verificable.
 | EC-21 | La configuración tiene entradas inválidas al arrancar | El daemon arranca, deja fuera del catálogo solo las entradas inválidas, reporta el error de forma visible y opera con las válidas. Si el archivo entero es ilegible, arranca con el catálogo vacío y lo reporta. Nunca arranca en silencio ni se niega a arrancar (FR-045). |
 | EC-22 | Una acción propia declarada por el usuario falla al ejecutarse | El turno termina con motivo "fallo al ejecutar", nombrando la acción propia. El daemon sigue vivo y la bitácora conserva el intento. |
 | EC-23 | El procesamiento no termina dentro de su presupuesto | A los 10 segundos el procesamiento aborta con motivo "tiempo agotado", sin ejecutar la acción (FR-070). |
+| EC-24 | Dos entradas de configuración declaran el mismo alias | Ambas entradas quedan fuera del catálogo, se reporta el alias duplicado y las entradas afectadas, y el resto de la configuración sigue operando (FR-075). No se resuelve por orden de declaración. |
 
 ---
 
@@ -483,12 +492,14 @@ Ningún estado carece de salida acotada en el tiempo (NFR-020, NFR-023).
 - **FR-043**: El usuario MUST poder declarar sinónimos y alias que resuelvan a una misma acción.
 - **FR-044**: El sistema MUST poder aplicar cambios de configuración sin reiniciar la máquina. Un turno en curso MUST completarse contra el catálogo vigente al momento de resolver la intención; la configuración nueva MUST aplicarse a partir del turno siguiente.
 - **FR-045**: El sistema MUST reportar de forma visible los errores de configuración y MUST NOT operar en silencio con una configuración inválida. Ante entradas inválidas MUST dejarlas fuera del catálogo y seguir operando con las válidas; si el archivo entero es ilegible MUST arrancar con el catálogo vacío y reportarlo. MUST NOT negarse a arrancar.
+- **FR-075**: Un alias declarado en más de una entrada, o un alias que coincida con el nombre canónico de otra entrada, MUST provocar el rechazo de **todas las entradas en conflicto** al cargar, reportando el alias y las entradas afectadas. El resto de la configuración MUST seguir operando (FR-045). El sistema MUST NOT resolver el conflicto por orden de declaración ni diferirlo a tiempo de ejecución.
 
 **Bitácora**
 
 - **FR-046**: El sistema MUST registrar en la bitácora cada turno con: texto de entrada, acción resuelta, parámetros, resultado y tiempo de cada etapa.
 - **FR-047**: Para todo turno no exitoso, la entrada de bitácora MUST contener el código de clase de error de FR-031 y el identificador de la etapa en la que se produjo, de modo que la causa sea determinable sin reproducir el turno.
 - **FR-048**: La bitácora MUST permanecer en la máquina del usuario y MUST NOT enviarse a ningún destino externo.
+- **FR-076**: La bitácora MUST rotar diariamente y MUST borrar los archivos con más de **30 días** de antigüedad. El plazo MUST ser configurable, y el borrado MUST ocurrir sin intervención del usuario.
 
 **Conjunto de frases de referencia**
 
@@ -526,7 +537,7 @@ bajo la carga de referencia** definida en el glosario.
 - **NFR-001**: En reposo, el conjunto de procesos del asistente MUST consumir menos del 1% de un núcleo, medido como promedio sostenido durante 10 minutos sin activaciones.
 - **NFR-002**: En reposo, el conjunto de procesos del asistente MUST mantener un RSS agregado menor a 150 MB, medido como máximo observado en una ventana de 10 minutos sin activaciones, contabilizando las páginas compartidas una sola vez.
 - **NFR-003**: Durante un turno completo, el consumo total de memoria del asistente y sus procesos auxiliares MUST NOT superar 1,5 GB en su pico, medido con muestreo de al menos 10 Hz.
-- **NFR-004**: Durante el procesamiento de un turno, el conjunto de procesos del asistente MUST NOT superar el 75% de la capacidad total de CPU —equivalente a 3 de los 4 núcleos—, medido como promedio en ventanas de 200 ms. Ningún núcleo MUST quedar por encima del 10% de utilización atribuible al asistente durante más de dos ventanas consecutivas.
+- **NFR-004**: Durante el procesamiento de un turno, el conjunto de procesos del asistente MUST NOT superar **el equivalente a un núcleo físico** —dos de los ocho hilos lógicos, es decir el 25% de la capacidad total de la máquina—, medido como promedio en ventanas de 200 ms. El techo MUST aplicarse por un mecanismo del sistema operativo, no por disciplina de código, de modo que sea exigible y no aspiracional. El consumo en reposo lo acota NFR-001.
 - **NFR-005**: Mientras el asistente procesa un turno bajo la carga de referencia, el tiempo entre cuadros de la ventana enfocada MUST mantenerse por debajo de 33 ms en el percentil 99, y el asistente MUST NOT provocar más de un cuadro descartado por turno.
 - **NFR-021**: El plan de la feature MUST declarar, por cada componente pesado, si es residente o de carga bajo demanda, con su costo de memoria y su tiempo de carga medidos. La suma de los residentes MUST caber en NFR-002, y el tiempo de carga de los componentes bajo demanda MUST estar incluido dentro del presupuesto de NFR-006.
 
@@ -586,6 +597,7 @@ bajo la carga de referencia** definida en el glosario.
 - **SC-012**: El conjunto completo de pruebas de intención, validación, rechazo y ejecución corre de punta a punta en una máquina sin dispositivos de audio.
 - **SC-013**: El asistente ejecuta correctamente el catálogo completo de acciones con la superficie de estado deshabilitada, usando solo los canales no gráficos de FR-033.
 - **SC-014**: Las 30 combinaciones de la tabla de *Máquina de estados* producen la transición declarada, verificado por prueba automatizada sobre la vía de texto plano.
+- **SC-015**: Durante el procesamiento de un turno bajo la carga de referencia, el conjunto de procesos del asistente nunca supera el equivalente a un núcleo físico (25% de la máquina), verificado por muestreo a 5 Hz a lo largo de 50 turnos consecutivos.
 
 ---
 
@@ -671,10 +683,12 @@ excluidas (Principio X), sin implementar ninguno.
 
 ## Assumptions
 
-- **Entorno**: el usuario corre Omarchy (Arch + Hyprland) en una laptop AMD Ryzen 5 3450U de
-  4 núcleos y 8 hilos, con gráficos integrados Radeon Vega 8 que comparten la RAM del sistema,
-  8 GB de RAM y SSD de 256 GB, usada simultáneamente para desarrollo. El asistente es siempre un
-  proceso accesorio, nunca el principal.
+- **Entorno**: el usuario corre Omarchy (Arch + Hyprland sobre Wayland, PipeWire) en una **Dell
+  Vostro 3405** con AMD Ryzen 5 3450U (Zen+): **4 núcleos físicos y 8 hilos lógicos, SMT activo**,
+  gráficos integrados Radeon Vega 8 que comparten la RAM del sistema, 8 GB de RAM y SSD de 256 GB.
+  La máquina se usa simultáneamente para desarrollo con navegador y editor abiertos: la memoria
+  realmente disponible ronda los 3 GB. **No hay GPU utilizable para inferencia.** El asistente es
+  siempre un proceso accesorio, nunca el principal.
 - **Actor único**: hay un solo usuario humano, dueño de la máquina, sin necesidad de autenticación,
   autorización ni separación de permisos.
 - **Sesión gráfica**: el asistente corre dentro de una sesión gráfica del usuario ya iniciada, con
@@ -689,7 +703,8 @@ excluidas (Principio X), sin implementar ninguno.
   sitios en inglés. Ningún otro idioma está soportado.
 - **Espacios de trabajo**: el rango válido lo determina el entorno de escritorio del usuario y se
   lee del sistema o de la configuración, no se fija en el código.
-- **Persistencia de la bitácora**: se conserva localmente. La política de retención y rotación no
-  está especificada y se define en la fase de planificación.
+- **Persistencia de la bitácora**: se conserva localmente, con rotación diaria y retención de 30
+  días (FR-076). Con decenas de turnos por día el volumen es de pocos MB al año, despreciable
+  contra el SSD de 256 GB.
 - **Turnos concurrentes**: un único turno activo a la vez, garantizado por FR-052 y por la tabla de
   *Máquina de estados*.

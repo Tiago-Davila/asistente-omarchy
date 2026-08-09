@@ -466,8 +466,9 @@ el propio daemon.
   hacer nada. `evactl` abre un socket, escribe una línea y termina; su costo es el fork/exec.
 - *Por qué systemd y no `exec-once` de Hyprland*: `exec-once` lanza, pero no supervisa ni reinicia.
   Una unidad de usuario da reinicio con backoff, journal para diagnóstico, y —relevante para
-  NFR-004— el slice donde se aplica `CPUQuota=150%`, que es el mecanismo que hace **exigible** el
-  techo de CPU en vez de aspiracional.
+  NFR-004— el slice donde se aplica **`CPUQuota=200%`**, que es el mecanismo que hace **exigible**
+  el techo de CPU en vez de aspiracional. `CPUQuota` cuenta hilos lógicos: en esta máquina de 8
+  hilos, 200% son dos hilos lógicos, es decir **un núcleo físico**, que es lo que pide NFR-004.
 - *Supervisión de auxiliares*: el daemon los lanza y observa su tubería. Si la superficie muere, ve
   EOF, lo registra en la bitácora, **degrada a los canales de FR-033** y reintenta con backoff
   exponencial acotado. El Principio V prohíbe que un componente opcional sea condición de arranque:
@@ -537,8 +538,8 @@ Cosas que este plan **no** decide, con el motivo y el momento en que corresponde
 |---|---|---|---|
 | 1 | **Motor y modelo de transcripción (D-05)** | Requiere medición en hardware objetivo que esta sesión no puede hacer | Antes de `/speckit-tasks`, completando la tabla y aplicando la regla de decisión |
 | 2 | Biblioteca JSON del daemon | No afecta arquitectura; es una elección de dependencia entre Jackson, `jsonp` y un parser mínimo propio. Depende de si D-05 trae Jackson por transitividad | Al escribir las tareas de infraestructura |
-| 3 | Retención y rotación de la bitácora | La spec la difiere explícitamente (*Assumptions*). No hay volumen que la haga urgente: decenas de turnos por día | Tras la primera semana de uso real, con datos de volumen |
-| 4 | Colisión de alias duplicados en configuración | Detectada por la auditoría, quedó sin cubrir en la spec. Es diseño del validador de esquema | Al definir las tareas de D-08; la regla propuesta es rechazar la configuración con `alias duplicado`, coherente con el Principio XVI |
+| 3 | ~~Retención y rotación de la bitácora~~ | — | **Cerrada** en la clarificación del 2026-08-09: rotación diaria, retención de 30 días, plazo configurable (FR-076) |
+| 4 | ~~Colisión de alias duplicados~~ | — | **Cerrada** en la clarificación del 2026-08-09: se rechazan todas las entradas en conflicto al cargar, el resto sigue operando (FR-075, EC-24) |
 | 5 | Empaquetado y distribución | Fuera de alcance de la fase 1 según la spec | Fase posterior |
 
 ---

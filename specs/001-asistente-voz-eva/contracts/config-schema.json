@@ -154,7 +154,7 @@
           "minimum": 1,
           "maximum": 2,
           "default": 2,
-          "description": "Tope de 2 para no invadir el único núcleo libre. El techo duro real lo aplica CPUQuota=150% en el slice de systemd (NFR-004)."
+          "description": "Tope de 2 hilos, que es lo que cabe en el núcleo físico asignado. El techo duro real lo aplica CPUQuota=200% en el slice de systemd, equivalente a dos hilos lógicos = un núcleo físico (NFR-004)."
         }
       }
     },
@@ -167,7 +167,8 @@
         "retencion_dias": {
           "type": "integer",
           "minimum": 1,
-          "description": "DECISIÓN DIFERIDA (research.md, diferida 3). Sin valor, no se rota por antigüedad."
+          "default": 30,
+          "description": "Rotación diaria y borrado de los archivos con más antigüedad que este plazo (FR-076)."
         }
       }
     }

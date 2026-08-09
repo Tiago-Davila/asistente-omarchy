@@ -16,22 +16,19 @@ hilos usados— **está sin tomar y no se sustituye por benchmarks publicados**.
 de decisión** que selecciona el motor automáticamente según los números. La elección de motor de
 transcripción es la única decisión del plan que queda **abierta y bloqueada por medición**.
 
-**2. Discrepancia en el conteo de hilos.** El encargo dice "4 núcleos, 4 hilos, sin SMT". El
-Ryzen 5 3450U es un Picasso/Zen+ que sale de fábrica con SMT (4C/8T), y [CLAUDE.md](../../CLAUDE.md)
-—escrito con datos tuyos— dice "4 núcleos, 8 hilos". O tenés SMT deshabilitado en BIOS, o hay un
-error en uno de los dos lados. **Este plan asume 4 hilos**, que es la dirección conservadora: si
-resultan 8, todos los presupuestos tienen más margen, nunca menos. Verificar con `lscpu` antes de
-`/speckit-tasks` (ver [quickstart.md](quickstart.md), escenario Q0).
+**2. Discrepancia en el conteo de hilos — RESUELTA (clarify 2026-08-09).** El encargo decía "4
+núcleos, 4 hilos, sin SMT"; el dato correcto es **4 núcleos físicos y 8 hilos lógicos, SMT activo**
+(Dell Vostro 3405, Ryzen 5 3450U). La spec ya lo decía bien. Este plan queda actualizado a 8 hilos.
 
-**3. NFR-004 de la spec es internamente contradictorio y además choca con el encargo.** Dice
-literalmente: *"MUST NOT superar el 75% de la capacidad total de CPU —equivalente a 3 de los 4
-núcleos—"* y en la oración siguiente *"Ningún núcleo MUST quedar por encima del 10% de utilización
-atribuible al asistente"*. Las dos no pueden cumplirse a la vez. Además el encargo dice que **hay
-como máximo un núcleo ocioso**, con lo cual 75% es un techo que degradaría el trabajo del usuario.
-Este plan presupuesta contra **150% de CPU (1,5 de 4 núcleos)**, aplicado por `CPUQuota=150%` en el
-slice de systemd, y lo registra en *Complexity Tracking* como desviación que **requiere enmienda de
-spec** antes de `/speckit-implement`. El plan no edita la spec: eso es trabajo de
-`/speckit-specify` o `/speckit-clarify`.
+**3. NFR-004 contradictorio — RESUELTA (clarify 2026-08-09).** La versión anterior decía "hasta el
+75% de la CPU total" y a la vez "ningún núcleo por encima del 10%", dos cláusulas que se excluyen.
+La spec enmendada fija el techo en **el equivalente a un núcleo físico**: dos de los ocho hilos
+lógicos, el 25% de la máquina, aplicado con **`CPUQuota=200%`** en el slice de systemd. La segunda
+cláusula se eliminó porque duplicaba NFR-001.
+
+> Nota sobre el número: `CPUQuota` cuenta **hilos lógicos**, así que `200%` son dos hilos lógicos =
+> un núcleo físico. Un `CPUQuota=100%` habría dado medio núcleo, que no es lo que la spec pide.
+> Este plan había propuesto 150% antes de conocer el conteo real; ese valor queda descartado.
 
 ---
 
@@ -70,9 +67,10 @@ lugar de micrófono (FR-041). Conjunto de 300 frases de referencia versionado en
 por test parametrizado (FR-063 a FR-067). Arneses de presupuesto: RSS por `smaps_rollup`, latencia
 por los timestamps de la bitácora.
 
-**Target Platform**: Omarchy (Arch Linux), Hyprland sobre Wayland, PipeWire. AMD Ryzen 5 3450U
-(Zen+, 4 núcleos; conteo de hilos a verificar), Radeon Vega integrada **sin uso para inferencia**,
-8 GB DDR4 compartidos con la iGPU. Memoria realmente disponible ≈ 3 GB; núcleos realmente libres ≈ 1.
+**Target Platform**: Omarchy (Arch Linux), Hyprland sobre Wayland, PipeWire. Dell Vostro 3405 con
+AMD Ryzen 5 3450U (Zen+, **4 núcleos físicos / 8 hilos lógicos, SMT activo**), Radeon Vega integrada
+**sin uso para inferencia**, 8 GB DDR4 compartidos con la iGPU. Memoria realmente disponible ≈ 3 GB;
+capacidad de CPU asignada al asistente durante el turno: **un núcleo físico** (NFR-004).
 
 **Project Type**: Daemon de usuario de escritorio, multiproceso, cien por ciento local.
 
@@ -80,8 +78,8 @@ por los timestamps de la bitácora.
 (NFR-007), sobre turnos sin confirmación. Cambio de estado observable < 100 ms (NFR-008).
 
 **Constraints**: < 1% de un núcleo y < 150 MB RSS agregado en reposo (NFR-001, NFR-002) · ≤ 1,5 GB
-de pico por turno (NFR-003) · ≤ 150% de CPU durante el turno (ver bloqueo 3) · cero conexiones de
-red del asistente (NFR-011) · ningún estado sin salida acotada (NFR-023).
+de pico por turno (NFR-003) · ≤ un núcleo físico de CPU durante el turno, `CPUQuota=200%` (NFR-004)
+· cero conexiones de red del asistente (NFR-011) · ningún estado sin salida acotada (NFR-023).
 
 **Scale/Scope**: un usuario, un turno concurrente, catálogo de ~12 acciones base más acciones
 propias declaradas, conjunto de referencia de 300 entradas.
@@ -275,7 +273,7 @@ preferencia, no ingeniería (Principio I).
 | R-02 | **La suma de residentes excede los 150 MB con navegador y editor abiertos.** | Media | Alto — invalida NFR-002 | El presupuesto estimado (68–95 MB) deja 55–82 MB de margen. Si la JVM no baja de 100 MB con la configuración de D-03, la escalera es: (1) AppCDS más agresivo y recorte de módulos con `jlink`, (2) `-XX:+AutoCreateSharedArchive`, (3) recién entonces GraalVM native-image, aceptando el costo de configuración de reflexión y JNI. Gate automatizado en CI: el test de presupuesto falla el build si `smaps_rollup` supera el techo. |
 | R-03 | **La solución de ventana superpuesta resulta inmadura o frágil.** | Media | Medio — degrada US4, no el núcleo | El diseño ya asume que puede fallar: FR-039 exige que el sistema funcione con la superficie apagada, y el Principio V prohíbe que sea condición de arranque. Si el binario Rust resulta caro o inestable, el plan B es `eww` —ya empaquetado en Arch, layer-shell probado— con el mismo contrato de socket, de modo que el cambio no toca el daemon. Plan C: solo notificaciones (FR-033), perdiendo US4 pero no la feature. |
 | R-04 | **La resolución determinística no cubre las variaciones naturales del habla.** | **Alta** | Medio — degrada NFR-014 (90%) | Es el riesgo más probable del proyecto y el conjunto de 300 frases existe justamente para medirlo temprano. Mitigación en tres tiempos: (1) el conjunto se escribe **antes** que el resolutor, así el objetivo es medible desde el día uno; (2) las reglas son datos, con lo cual una variación no cubierta se arregla editando configuración, no recompilando; (3) el modo de fallo es seguro por diseño — una frase no cubierta cae en rechazo (FR-009), nunca en acción equivocada, que es lo que NFR-015 protege con el umbral de <1%. |
-| R-05 | El conteo de hilos real es 8 y no 4, o viceversa. | Media | Bajo | Se planificó contra 4. Verificación con `lscpu` en Q0 antes de `/speckit-tasks`. |
+| R-05 | ~~Conteo de hilos incierto~~ | — | — | **Cerrado** en la clarificación del 2026-08-09: 4 núcleos físicos, 8 hilos lógicos, SMT activo. |
 | R-06 | El modelo cuantizado degrada más de lo esperado con nombres propios en inglés dentro de frases en español. | Media | Medio | FR-064 obliga a que el conjunto de referencia incluya al menos una entrada con nombre en inglés por acción, así el problema aparece en la medición y no en producción. Mitigación: declarar variantes fonéticas como alias en configuración (FR-043). |
 
 ---
@@ -286,7 +284,6 @@ preferencia, no ingeniería (Principio I).
 
 | Desviación | Por qué es necesaria | Alternativa más simple, y por qué se rechaza |
 |---|---|---|
-| **Presupuesto de CPU en 150% en vez del 75% de NFR-004** | NFR-004 es internamente contradictorio (75% del total vs. ningún núcleo sobre 10%) y el encargo declara que hay **un solo núcleo ocioso**. Un techo de 3 núcleos degradaría el trabajo del usuario, que es lo que el Principio VI protege. | Cumplir NFR-004 al pie de la letra es imposible: las dos cláusulas se excluyen. **Requiere enmienda de spec** vía `/speckit-clarify` antes de `/speckit-implement`. |
 | **Cuatro procesos en vez de uno** | Ninguna JVM puede pintar una ventana `wlr-layer-shell` sin foco, y mantener el STT residente rompe NFR-002. | Un proceso único fue rechazado por las dos razones anteriores; ambas son restricciones de plataforma, no preferencias. |
 | **Dos lenguajes (Java + Rust)** | Los toolkits gráficos de la JVM no soportan layer-shell, y un cliente de control en JVM no entra en los 100 ms de NFR-008. | Python + PyGObject fue evaluado y rechazado en D-10: ~45 MB residentes contra ~10 MB, sobre un presupuesto de 150 MB. |
 | **D-05 sin resolver al cerrar el plan** | Requiere medición en hardware que esta sesión no tiene. | Elegir a ciegas contra benchmarks publicados fue rechazado: el encargo lo prohíbe explícitamente y Zen+ sin AVX-512 no se parece a las máquinas de los benchmarks habituales. |
