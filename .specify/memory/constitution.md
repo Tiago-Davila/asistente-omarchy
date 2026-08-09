@@ -89,9 +89,8 @@ volverse un fallo total.
 El sistema corre en una laptop que el usuario está usando para otra cosa. Restricciones duras:
 
 - En reposo: menos de 3% de un core y menos de 250 MB de RSS.
-- Stack completo cargado: no más de 3 GB de RAM.
-- Los modelos DEBEN estar cuantizados. STT no mayor a `whisper small`. LLM no mayor a 4B
-  parámetros.
+- Stack completo cargado: no más de 1.5 GB de RAM.
+- Los modelos DEBEN estar cuantizados. STT no mayor a `whisper small`. LLM fuera de la fase 1. 
 - Los componentes pesados se cargan bajo demanda, o se declaran explícitamente como residentes
   con su costo justificado.
 
