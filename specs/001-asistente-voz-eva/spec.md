@@ -12,39 +12,40 @@ sin conexión a internet y sin degradar el rendimiento del sistema.
 
 ---
 
-## ⚠ Conflicto con la Constitución (resolver antes de `/speckit-plan`)
+## Alineación con la Constitución (v2.0.0)
 
-El requisito de **interfaz gráfica mínima** (US4, FR-034 a FR-039) contradice de forma directa el
-**Principio X — Alcance de Fase 1: Sin Interfaz Gráfica** de
-[.specify/memory/constitution.md](../../.specify/memory/constitution.md), que dice textualmente:
-"Queda explícitamente fuera de esta fase todo lo relacionado con overlays, layer-shell, widgets,
-barra de estado y OSD. La arquitectura DEBE dejar el punto de extensión declarado, y NO DEBE
-implementarlo."
+Esta especificación está alineada con
+[.specify/memory/constitution.md](../../.specify/memory/constitution.md) **v2.0.0**. No hay
+conflictos abiertos.
 
-Esto no es una ambigüedad interpretable: son dos afirmaciones incompatibles sobre el mismo alcance.
-La especificación se redacta **incluyendo** la interfaz gráfica porque el usuario la solicitó de
-forma explícita y detallada, pero el conflicto DEBE resolverse antes de la fase de planificación
-por una de estas dos vías:
+**Interfaz gráfica.** La versión 1.0.0 de la constitución prohibía toda interfaz gráfica en fase 1,
+lo que contradecía a US4 y a FR-034 a FR-039. La enmienda a v2.0.0 redefinió el Principio X, que
+ahora permite **una única superficie gráfica mínima de estado** sujeta a cinco condiciones
+acumulativas. Cada condición tiene su requisito en esta spec:
 
-- **Vía A — Enmendar la constitución**: redefinir el Principio X para admitir una interfaz mínima
-  no intrusiva en fase 1. Es una redefinición incompatible de un principio, por lo que exige un
-  bump **MAJOR** a la versión 2.0.0 vía `/speckit-constitution`.
-- **Vía B — Recortar el alcance**: quitar US4 de esta feature y dejar el feedback en notificación
-  del sistema, stdout y código de retorno, como manda hoy el Principio X. US4 pasaría a una feature
-  posterior.
+| Condición del Principio X | Requisito de esta spec |
+| --- | --- |
+| 1. Muestra únicamente estado del turno, texto entendido y acción resuelta | FR-034 |
+| 2. No toma el foco del teclado en ningún momento | FR-036, FR-038 |
+| 3. No tapa ni desplaza la ventana de trabajo | FR-035 |
+| 4. Visible solo cuando hay algo que comunicar; desaparece sola | FR-037 |
+| 5. El sistema sigue funcional con la superficie deshabilitada | FR-039, FR-033 |
 
-Ninguna otra restricción del usuario entra en conflicto con la constitución. Los presupuestos de
-recursos que pide el usuario (<1% de un núcleo, <150 MB en reposo, ≤1,5 GB por turno) son iguales
-o **más estrictos** que los constitucionales, y un límite más estricto cumple el Principio VI sin
-necesitar excepción.
+Las exclusiones del Principio X —barra de estado permanente, widgets, panel de configuración,
+historial navegable, dashboards y cualquier ventana enfocable— están recogidas en *Fuera de alcance*.
 
-**Aviso: la constitución está internamente inconsistente en este momento.** El texto del Principio
-VI dice "Stack completo cargado: no más de 1.5 GB de RAM" y "LLM fuera de la fase 1", pero la tabla
-de Restricciones Técnicas del mismo documento sigue diciendo `RAM stack completo ≤ 3 GB` y
-`Modelo LLM ≤ 4B parámetros`. Los dos enunciados del mismo límite quedaron desincronizados. Hay que
-alinearlos vía `/speckit-constitution` (es un endurecimiento de límite y una remoción de alcance:
-bump MINOR o MAJOR según cómo se lea la remoción del LLM). Lo mismo aplica a
-[CLAUDE.md](../../CLAUDE.md), que repite los valores viejos.
+**Modelo de lenguaje.** La v2.0.0 sacó el LLM generativo del alcance de fase 1 (Principio IV y tabla
+de presupuestos). Coincide con lo que esta spec ya declaraba: FR-013 exige resolución determinística
+y el LLM figura en *Fuera de alcance*.
+
+**Presupuestos.** Los de esta spec son iguales o **más estrictos** que los constitucionales, y un
+límite más estricto satisface el Principio VI sin necesitar excepción documentada:
+
+| Dimensión | Constitución (piso) | Esta spec (gobierna) |
+| --- | --- | --- |
+| CPU en reposo | < 3% de un núcleo | **< 1%** (NFR-001) |
+| RSS en reposo | < 250 MB | **< 150 MB** (NFR-002) |
+| RAM pico por turno | ≤ 1.5 GB | ≤ 1,5 GB (NFR-003) |
 
 ---
 
@@ -147,7 +148,8 @@ entendió y qué acción va a ejecutar, sin robar el foco del teclado ni tapar l
 
 **Why this priority**: sin feedback visible el usuario no sabe si el asistente lo escuchó, y eso
 rompe la usabilidad. Es P2 y no P1 porque US1 y US2 pueden entregar feedback por notificación del
-sistema mientras tanto. **Bloqueada por el conflicto con el Principio X descrito arriba.**
+sistema mientras tanto. Habilitada por el Principio X de la constitución v2.0.0, y acotada por sus
+cinco condiciones.
 
 **Independent Test**: se prueba activando el asistente mientras se escribe en un editor y
 verificando que el cursor de texto no se pierde, que el editor mantiene el foco, y que la interfaz
@@ -296,14 +298,15 @@ Cada caso borde tiene un comportamiento esperado declarado y verificable:
 - **FR-032**: El sistema MUST emitir una señal sonora breve al terminar el turno, distinta para éxito y para error, reconocible sin mirar la pantalla.
 - **FR-033**: El sistema MUST reportar el resultado de cada turno también por un canal no gráfico, de modo que la funcionalidad siga siendo observable sin interfaz.
 
-**Interfaz gráfica** *(condicionada al conflicto con el Principio X — ver arriba)*
+**Interfaz gráfica** *(la superficie mínima de estado del Principio X; ver la tabla de alineación)*
 
-- **FR-034**: El sistema MUST mostrar una interfaz gráfica mínima con el estado, la transcripción y la acción resuelta.
-- **FR-035**: La interfaz MUST ocupar una porción reducida de la pantalla y MUST NOT tapar ni desplazar la ventana en la que el usuario está trabajando.
-- **FR-036**: La interfaz MUST NOT tomar el foco del teclado en ningún momento.
-- **FR-037**: La interfaz MUST ser visible solo cuando hay algo que comunicar y MUST desaparecer sola al terminar el turno.
+- **FR-034**: El sistema MUST mostrar **una única** superficie gráfica mínima, y esta MUST mostrar únicamente el estado del turno, el texto entendido y la acción resuelta.
+- **FR-035**: La superficie MUST ocupar una porción reducida de la pantalla y MUST NOT tapar ni desplazar la ventana en la que el usuario está trabajando.
+- **FR-036**: La superficie MUST NOT tomar el foco del teclado en ningún momento.
+- **FR-037**: La superficie MUST ser visible solo cuando hay algo que comunicar y MUST desaparecer sola al terminar el turno.
 - **FR-038**: El usuario MUST poder confirmar o cancelar una acción pendiente sin que cambie el foco de su ventana actual.
-- **FR-039**: El sistema MUST seguir siendo completamente funcional con la interfaz gráfica deshabilitada, degradando el feedback a los canales de FR-033.
+- **FR-039**: El sistema MUST seguir siendo completamente funcional con la superficie deshabilitada, degradando el feedback a los canales de FR-033.
+- **FR-053**: El sistema MUST NOT introducir ninguna otra superficie gráfica: quedan excluidas barra de estado permanente, widgets, panel de configuración, historial navegable, dashboards y cualquier ventana que el usuario pueda enfocar.
 
 **Entrada por texto equivalente**
 
@@ -395,6 +398,7 @@ Cada caso borde tiene un comportamiento esperado declarado y verificable:
 - **SC-010**: Ante cualquier turno que no hizo lo esperado, el usuario puede determinar la causa consultando el registro, sin reproducir el problema.
 - **SC-011**: El 100% de las acciones clasificadas como destructivas quedan sin ejecutarse hasta recibir confirmación explícita.
 - **SC-012**: El conjunto completo de pruebas de intención, validación, rechazo y ejecución corre de punta a punta en una máquina sin dispositivos de audio.
+- **SC-013**: El asistente ejecuta correctamente el catálogo completo de acciones con la superficie gráfica deshabilitada, usando solo los canales no gráficos de feedback.
 
 ---
 
@@ -456,9 +460,12 @@ Queda explícitamente fuera de esta feature:
 - Control de aplicaciones específicas más allá de abrirlas.
 - Múltiples usuarios o perfiles.
 - Instalación empaquetada o distribución a terceros.
+- Toda superficie gráfica que no sea la del Principio X (FR-053): barra de estado permanente,
+  widgets, panel de configuración, historial navegable, dashboards y cualquier ventana enfocable.
 
-La arquitectura DEBE dejar declarado el punto de extensión para el fallback por modelo de lenguaje
-(Principio IV) y para la síntesis de voz (Principio VIII), sin implementarlos.
+La arquitectura DEBE dejar declarados los puntos de extensión para el fallback por modelo de
+lenguaje (Principio IV), para la síntesis de voz (Principio VIII) y para las superficies gráficas
+excluidas (Principio X), sin implementar ninguno.
 
 ---
 
