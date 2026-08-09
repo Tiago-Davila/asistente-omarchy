@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eva.local/schemas/config-1.json",
+  "title": "Configuración de usuario de Eva",
+  "description": "Esquema de $XDG_CONFIG_HOME/eva/config.toml. El TOML se convierte a JSON en memoria y se valida contra este esquema al cargar (FR-042 a FR-045). La validación es entrada por entrada: las válidas entran al catálogo, las inválidas quedan fuera y se reportan; el daemon nunca se niega a arrancar ni arranca en silencio (EC-21, Principios V y XVI).",
+  "type": "object",
+  "required": ["version"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "const": 1 },
+
+    "aplicaciones": {
+      "type": "object",
+      "description": "Aplicaciones que Eva conoce. La clave es el nombre canónico que dice el usuario. Se referencia una entrada .desktop por su id, nunca una ruta de binario (Principio XIII).",
+      "propertyNames": { "pattern": "^[\\p{L}0-9 ._-]{1,60}$" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["desktop_id"],
+        "additionalProperties": false,
+        "properties": {
+          "desktop_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]+\\.desktop$",
+            "description": "Id de la entrada XDG, resuelta contra $XDG_DATA_DIRS/applications."
+          },
+          "wm_class": {
+            "type": "string",
+            "description": "Sobrescribe StartupWMClass cuando la entrada .desktop no lo declara o lo declara mal. Es el vínculo que hace funcionar la política de instancia única de FR-014."
+          },
+          "espacio_preferido": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Espacio de trabajo donde abrir la aplicación cuando el usuario no lo indica (AMB-05). Solo aplica a la primera apertura: si ya está abierta, manda FR-014."
+          },
+          "alias": {
+            "type": "array",
+            "items": { "type": "string", "maxLength": 60 },
+            "description": "Sinónimos que resuelven a esta misma aplicación (FR-043). Incluir acá las variantes fonéticas de nombres en inglés (FR-064)."
+          }
+        }
+      }
+    },
+
+    "sitios": {
+      "type": "object",
+      "description": "Sitios que Eva sabe abrir. 'abrí X' con X no declarado se rechaza con sitio_no_declarado; no se sustituye por búsqueda web (FR-016, EC-13).",
+      "propertyNames": { "pattern": "^[\\p{L}0-9 ._-]{1,60}$" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["url"],
+        "additionalProperties": false,
+        "properties": {
+          "url": { "type": "string", "format": "uri", "pattern": "^https?://" },
+          "alias": { "type": "array", "items": { "type": "string", "maxLength": 60 } }
+        }
+      }
+    },
+
+    "busqueda": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "plantilla_url": {
+          "type": "string",
+          "pattern": "^https?://.*\\{termino\\}",
+          "description": "Plantilla del buscador. El término se escapa antes de sustituirse y nunca se interpreta como estructura de la URL (FR-073)."
+        }
+      }
+    },
+
+    "lenguaje": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Datos de la resolución determinística de intención (D-07). Son datos, no código: agregar un fraseo no recompila nada (Principio XIII).",
+      "properties": {
+        "muletillas": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 30 },
+          "description": "Se eliminan en la normalización, por ejemplo 'che', 'dale', 'por favor', 'a ver'."
+        },
+        "reescrituras": {
+          "type": "object",
+          "description": "Formas verbales rioplatenses hacia su lema canónico, por ejemplo 'abrí' -> 'abrir', 'andá' -> 'ir' (FR-011).",
+          "additionalProperties": { "type": "string", "pattern": "^[a-z]+$" }
+        },
+        "encliticos": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-z]{2,3}$" },
+          "default": ["me", "te", "le", "lo", "la", "se", "nos", "los", "las"],
+          "description": "Pronombres que se despegan del final de la forma verbal antes de buscar el lema."
+        }
+      }
+    },
+
+    "confirmacion": {
+      "type": "object",
+      "required": ["tecla_aceptar", "tecla_cancelar", "palabra_aceptar", "palabra_cancelar"],
+      "additionalProperties": false,
+      "description": "Las cuatro entradas de FR-057. Invariante de carga (FR-058): ninguna de las dos palabras puede coincidir con un token que active una acción del catálogo ni con un alias declarado; la colisión rechaza la configuración.",
+      "properties": {
+        "tecla_aceptar": { "type": "string", "maxLength": 40 },
+        "tecla_cancelar": { "type": "string", "maxLength": 40 },
+        "palabra_aceptar": { "type": "string", "pattern": "^[\\p{L}]{3,20}$" },
+        "palabra_cancelar": { "type": "string", "pattern": "^[\\p{L}]{3,20}$" },
+        "timeout_ms": {
+          "type": "integer",
+          "const": 10000,
+          "description": "Fijado por FR-055 y NFR-019. Se declara para que sea visible, no para que se cambie."
+        }
+      }
+    },
+
+    "superficie": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Superficie de estado del Principio X. El sistema debe seguir siendo funcional con habilitada = false (FR-039, SC-013).",
+      "properties": {
+        "habilitada": { "type": "boolean", "default": true },
+        "anclaje": { "enum": ["arriba", "abajo", "izquierda", "derecha"], "default": "abajo" },
+        "permanencia_ms": {
+          "type": "integer",
+          "const": 3000,
+          "description": "Fijado por NFR-022."
+        }
+      }
+    },
+
+    "audio": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hangover_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 600,
+          "default": 250,
+          "description": "Silencio que confirma el fin del habla (D-06). Entra en el presupuesto de latencia."
+        },
+        "timeout_sin_voz_ms": { "type": "integer", "const": 10000, "description": "FR-061." },
+        "tope_captura_ms": { "type": "integer", "const": 20000, "description": "FR-062." }
+      }
+    },
+
+    "stt": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Motor de transcripción. El motor concreto está SIN DECIDIR (research.md D-05): se elige completando la tabla de medición en el hardware objetivo y aplicando la regla de decisión.",
+      "properties": {
+        "motor": { "enum": ["vosk", "whisper_cpp"] },
+        "modelo_ruta": { "type": "string", "description": "Bajo $XDG_DATA_HOME/eva/models/." },
+        "descarga_inactividad_ms": { "type": "integer", "minimum": 0, "default": 120000 },
+        "hilos": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2,
+          "default": 2,
+          "description": "Tope de 2 para no invadir el único núcleo libre. El techo duro real lo aplica CPUQuota=150% en el slice de systemd (NFR-004)."
+        }
+      }
+    },
+
+    "bitacora": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "directorio": { "type": "string", "description": "Por defecto $XDG_STATE_HOME/eva/bitacora." },
+        "retencion_dias": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "DECISIÓN DIFERIDA (research.md, diferida 3). Sin valor, no se rota por antigüedad."
+        }
+      }
+    }
+  }
+}

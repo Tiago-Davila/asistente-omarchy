@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://eva.local/schemas/registry-1.json",
+  "title": "Catálogo de acciones de Eva",
+  "description": "Esquema del catálogo cerrado de acciones (Principio III). El TOML de catalogo.toml se convierte a JSON en memoria y se valida contra este esquema al cargar (FR-042, FR-045). Una acción que no valide queda fuera del catálogo y se reporta; el resto sigue operando (EC-21).",
+  "type": "object",
+  "required": ["version", "acciones"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Versión del esquema del catálogo. Un valor distinto rechaza el archivo entero."
+    },
+    "acciones": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/accion" }
+    }
+  },
+  "$defs": {
+    "accion": {
+      "type": "object",
+      "required": ["id", "patrones", "ejecutor"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "maxLength": 64,
+          "description": "Identificador único. Es lo que el resolutor elige; nunca una cadena de comando (Principio III)."
+        },
+        "descripcion": { "type": "string", "maxLength": 200 },
+        "patrones": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "Patrón con slots, por ejemplo 'abrir {app} en (el )?(escritorio|espacio) {espacio}'. Los slots entre llaves deben existir en 'parametros' (FR-011)."
+          }
+        },
+        "parametros": {
+          "type": "array",
+          "default": [],
+          "items": { "$ref": "#/$defs/parametro" }
+        },
+        "destructiva": {
+          "type": "boolean",
+          "description": "Ausente en una acción propia equivale a true (FR-054). La configuración puede elevar a true cualquier acción, y no puede bajar a false las destructivas del núcleo (FR-074)."
+        },
+        "ejecutor": { "$ref": "#/$defs/ejecutor" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "ejecutor": { "properties": { "tipo": { "const": "proceso" } } } }
+          },
+          "then": {
+            "properties": {
+              "ejecutor": { "required": ["argv"] }
+            }
+          }
+        }
+      ]
+    },
+    "parametro": {
+      "type": "object",
+      "required": ["nombre", "tipo"],
+      "additionalProperties": false,
+      "properties": {
+        "nombre": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$", "maxLength": 32 },
+        "tipo": {
+          "enum": ["app", "sitio", "entero", "texto_libre", "enum"],
+          "description": "Determina cómo se resuelve y valida el valor extraído (FR-024)."
+        },
+        "obligatorio": { "type": "boolean", "default": true },
+        "rango": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Solo para tipo 'entero'. Si se omite y el parámetro es un espacio de trabajo, el rango se lee del gestor de ventanas en vez de declararse (Principio XIII, EC-05).",
+          "properties": {
+            "min": { "type": "integer" },
+            "max": { "type": "integer" }
+          }
+        },
+        "valores": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "Solo para tipo 'enum'. Pertenencia estricta; fuera del conjunto es parametro_invalido."
+        },
+        "max_longitud": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 200,
+          "description": "Solo para tipo 'texto_libre'. El término de búsqueda de FR-018 se acota a 200 y se escapa antes de componer la URL (FR-073)."
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "tipo": { "const": "enum" } }, "required": ["tipo"] },
+          "then": { "required": ["valores"] }
+        }
+      ]
+    },
+    "ejecutor": {
+      "type": "object",
+      "required": ["tipo"],
+      "additionalProperties": false,
+      "properties": {
+        "tipo": {
+          "enum": ["hyprland", "app", "url", "busqueda", "medios", "proceso"],
+          "description": "Despachador conocido por el núcleo. El resolutor nunca produce un comando: elige un id de acción y el núcleo despacha por este tipo (Principio III, FR-025)."
+        },
+        "comando": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Solo para tipo 'hyprland'. Comando del socket IPC, por ejemplo 'dispatch workspace'."
+        },
+        "argv": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "maxLength": 500 },
+          "description": "Solo para tipo 'proceso' (acciones propias, FR-023). ARREGLO declarado, elemento por elemento. Nunca una cadena que se parte por espacios, y nunca compuesto con texto de la transcripción (FR-025). Los valores de parámetros se interpolan solo en elementos que sean exactamente '{nombre_parametro}', como elemento completo del arreglo."
+        }
+      }
+    }
+  }
+}
