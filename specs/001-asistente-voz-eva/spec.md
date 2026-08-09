@@ -58,6 +58,12 @@ límite más estricto satisface el Principio VI sin necesitar excepción documen
 - Q: Si el usuario pide abrir una aplicación que ya está abierta, ¿se enfoca la existente o se abre otra instancia? → A: Siempre se enfoca la instancia existente; si hay varias, la más reciente. Nunca se abre una segunda instancia.
 - Q: Si se pide abrir una aplicación en un espacio de trabajo determinado y ya está abierta en otro, ¿qué hace el sistema? → A: Mueve la ventana existente al espacio de trabajo pedido y la enfoca ahí.
 - Q: ¿Cuánto espera el sistema una confirmación pendiente antes de cancelarla sola? → A: 10 segundos.
+- Q: Si el texto encaja con dos acciones distintas del catálogo y ambas tienen parámetros válidos, ¿qué hace el sistema? → A: Rechaza siempre con motivo "intención ambigua", nombrando las acciones candidatas. No desempata por ningún criterio.
+- Q: ¿Por qué canal se confirma o cancela una acción destructiva? → A: Por teclado o por voz, indistintamente: tecla dedicada de aceptar y de cancelar, o palabra declarada de aceptación y de cancelación.
+- Q: ¿Cuánto permanece el sistema en estado escuchando si no detecta voz? → A: 10 segundos, tras los cuales abandona la activación.
+- Q: ¿Cuál es el tope duro de captura cuando sí entra audio y la detección de fin de habla no corta? → A: 20 segundos desde la activación.
+- Q: ¿Qué pasa si el usuario cancela cuando la acción ya empezó a ejecutarse? → A: La cancelación se ignora: la acción se completa, se informa que ya estaba en curso, y no se intenta revertir ni abortar a mitad.
+- Q: ¿De qué tamaño es el conjunto de frases de referencia? → A: Al menos 300 entradas: unas 20 por acción del catálogo más al menos 80 marcadas "debe rechazarse".
 
 ---
 
@@ -93,6 +99,9 @@ correcta se ejecutó con los parámetros correctos, en una máquina sin micrófo
 6. **Given** una misma intención expresada en cinco fraseos rioplatenses distintos (voseo,
    imperativo con enclítico, muletilla inicial), **When** se envía cada uno, **Then** los cinco
    resuelven a la misma acción con los mismos parámetros.
+7. **Given** un texto que resuelve a dos acciones del catálogo con parámetros válidos, **When** se
+   envía, **Then** el asistente rechaza con motivo "intención ambigua", nombra las dos candidatas y
+   no ejecuta ninguna.
 
 ---
 
@@ -113,14 +122,18 @@ detuvo sola al terminar el habla.
 1. **Given** el asistente en reposo, **When** el usuario presiona el atajo global y dice "abrí
    la terminal", **Then** el asistente captura, detecta el fin del habla por su cuenta, transcribe,
    y ejecuta la acción de abrir la terminal.
-2. **Given** el asistente en reposo, **When** el usuario presiona el atajo y no dice nada,
-   **Then** el asistente descarta la activación sin ejecutar ninguna acción y vuelve a reposo.
+2. **Given** el asistente en reposo, **When** el usuario presiona el atajo y no dice nada durante
+   10 segundos, **Then** el asistente descarta la activación sin transcribir ni ejecutar nada,
+   cierra la captura y vuelve a reposo.
 3. **Given** una activación en curso con el usuario hablando, **When** el usuario cancela antes de
    que la acción se ejecute, **Then** no se ejecuta ninguna acción y el asistente vuelve a reposo.
 4. **Given** el asistente en reposo y sin activación, **When** se inspecciona el estado del
    dispositivo de audio, **Then** el asistente no tiene el micrófono abierto ni está capturando.
 5. **Given** la misma frase de referencia enviada por voz y por texto, **When** ambas se procesan,
    **Then** producen exactamente la misma acción con los mismos parámetros.
+6. **Given** una activación con audio continuo entrando y sin fin de habla detectable, **When**
+   pasan 20 segundos, **Then** la captura se cierra por tope duro y lo capturado se procesa como
+   transcripción parcial.
 
 ---
 
@@ -142,15 +155,20 @@ dejan el sistema sin cambios.
 1. **Given** una acción marcada como destructiva, **When** el usuario la pide, **Then** el
    asistente muestra la acción concreta con sus parámetros y queda esperando confirmación sin
    ejecutar nada.
-2. **Given** el asistente esperando confirmación, **When** el usuario confirma explícitamente,
-   **Then** la acción se ejecuta y se reporta el resultado.
-3. **Given** el asistente esperando confirmación, **When** el usuario cancela, **Then** la acción
-   no se ejecuta y el asistente vuelve a reposo.
+2. **Given** el asistente esperando confirmación, **When** el usuario presiona la tecla de aceptar
+   **o** dice la palabra de aceptación declarada, **Then** la acción se ejecuta y se reporta el
+   resultado.
+3. **Given** el asistente esperando confirmación, **When** el usuario presiona la tecla de cancelar
+   **o** dice la palabra de cancelación declarada, **Then** la acción no se ejecuta y el asistente
+   vuelve a reposo.
 4. **Given** el asistente esperando confirmación, **When** pasan 10 segundos sin respuesta,
    **Then** la acción no se ejecuta, el asistente vuelve a reposo y queda disponible para el
    siguiente turno.
 5. **Given** una acción cuya clasificación de destructividad no está declarada, **When** el usuario
    la pide, **Then** el asistente la trata como destructiva y pide confirmación.
+6. **Given** el asistente esperando confirmación, **When** llega cualquier entrada distinta de las
+   cuatro declaradas en FR-057, **Then** la acción no se ejecuta, el plazo de 10 segundos no se
+   reinicia, y el asistente sigue esperando hasta que expire.
 
 ---
 
@@ -242,7 +260,7 @@ Cada caso borde tiene un comportamiento esperado declarado y verificable:
 | # | Caso | Comportamiento esperado |
 |---|------|-------------------------|
 | EC-01 | El micrófono está ocupado por otra aplicación | El asistente no ejecuta ninguna acción, reporta el error de dispositivo ocupado de forma comprensible y vuelve a reposo. No reintenta en bucle. |
-| EC-02 | No se detecta habla en la activación | Se descarta la activación en silencio o con señal mínima, no se transcribe, no se ejecuta nada, vuelve a reposo. |
+| EC-02 | No se detecta habla en la activación | A los 10 segundos sin habla detectada se abandona el turno (FR-061): no se transcribe, no se ejecuta nada, se cierra la captura y se vuelve a reposo. |
 | EC-03 | El usuario dice algo que no corresponde a ninguna acción conocida | Rechazo con motivo "acción desconocida". Nunca se ejecuta la acción más parecida. |
 | EC-04 | El usuario nombra una aplicación no instalada o no declarada | Rechazo con motivo distinguible: "no declarada" (falta en configuración) o "no disponible" (declarada pero ausente del sistema). |
 | EC-05 | El usuario indica un espacio de trabajo fuera del rango válido | Rechazo por parámetro fuera de rango, indicando el rango válido. No se recorta ni se aproxima al valor más cercano. |
@@ -255,6 +273,9 @@ Cada caso borde tiene un comportamiento esperado declarado y verificable:
 | EC-12 | El dispositivo de audio cambia en medio de la captura | El turno en curso termina en error de captura sin ejecutar nada; el asistente se recupera y queda operativo para la siguiente activación sin reiniciar el daemon. |
 | EC-13 | El usuario pide abrir un sitio que no está declarado en configuración | Rechazo con motivo "sitio no declarado" (FR-016). No se sustituye por una búsqueda web, aunque el nombre sea buscable. |
 | EC-14 | El usuario pide abrir en un espacio de trabajo una aplicación que ya está abierta en otro | La ventana existente se mueve al espacio pedido y se enfoca ahí (FR-015). No se abre una segunda instancia ni se descarta el espacio pedido. |
+| EC-15 | El texto resuelve a dos o más acciones del catálogo con parámetros válidos | Rechazo con motivo "intención ambigua", nombrando las candidatas (FR-056). No se desempata por ningún criterio ni se ejecuta ninguna de las dos. |
+| EC-16 | Entra audio continuo y la detección de fin de habla nunca corta | La captura termina por tope duro a los 20 segundos (FR-062). Lo capturado se trata como transcripción parcial (EC-10): se ejecuta si resuelve con parámetros válidos, se rechaza si no. |
+| EC-17 | El usuario cancela con la acción ya en ejecución | La cancelación se ignora, la acción se completa y se informa que ya estaba en curso (FR-003). No se revierte ni se aborta a mitad. La bitácora deja constancia de la cancelación tardía. |
 
 ---
 
@@ -266,7 +287,7 @@ Cada caso borde tiene un comportamiento esperado declarado y verificable:
 
 - **FR-001**: El sistema MUST permitir al usuario iniciar un turno mediante un atajo de teclado global.
 - **FR-002**: El sistema MUST capturar audio únicamente durante un turno activado, y MUST NOT capturar audio en ningún otro momento.
-- **FR-003**: El sistema MUST permitir al usuario cancelar un turno en curso antes de que la acción se ejecute.
+- **FR-003**: El sistema MUST permitir al usuario cancelar un turno en curso antes de que la acción se ejecute. Una cancelación recibida **después** de iniciada la ejecución MUST ignorarse: el sistema MUST completar la acción, MUST informar al usuario que ya estaba en curso, y MUST NOT intentar revertirla ni abortarla a mitad.
 - **FR-004**: El sistema MUST liberar el dispositivo de audio al terminar el turno, sea cual sea el resultado.
 
 **Transcripción**
@@ -274,6 +295,8 @@ Cada caso borde tiene un comportamiento esperado declarado y verificable:
 - **FR-005**: El sistema MUST transcribir a texto en español el audio capturado durante el turno.
 - **FR-006**: El sistema MUST detectar por su cuenta el fin del habla y dejar de capturar, sin acción del usuario.
 - **FR-007**: El sistema MUST descartar los turnos en los que no se detectó habla, sin ejecutar ninguna acción.
+- **FR-061**: Si tras la activación no se detecta habla durante 10 segundos consecutivos, el sistema MUST abandonar el turno sin transcribir ni ejecutar nada, cerrar la captura y volver a reposo.
+- **FR-062**: La captura MUST terminar como máximo a los 20 segundos desde la activación, aunque siga entrando audio y no se haya detectado el fin del habla. Lo capturado hasta ese momento MUST tratarse como transcripción parcial, con el comportamiento de EC-10.
 
 **Resolución de intención**
 
@@ -283,6 +306,7 @@ Cada caso borde tiene un comportamiento esperado declarado y verificable:
 - **FR-011**: El sistema MUST resolver a la misma acción las variaciones naturales de fraseo de una misma intención, incluyendo voseo, imperativos con pronombre enclítico y muletillas iniciales.
 - **FR-012**: El sistema MUST tolerar nombres de aplicaciones y sitios en inglés dentro de una frase en español.
 - **FR-013**: El sistema MUST resolver las intenciones frecuentes de forma determinística, sin depender de un modelo generativo (ver *Fuera de alcance*).
+- **FR-056**: Si el texto resuelve a más de una acción del registro con parámetros válidos, el sistema MUST rechazar con motivo "intención ambigua" y MUST nombrar las acciones candidatas en el feedback. El sistema MUST NOT desempatar por puntaje de coincidencia, orden de declaración, especificidad, frecuencia de uso ni ningún otro criterio implícito.
 
 **Acciones disponibles**
 
@@ -306,12 +330,16 @@ Cada caso borde tiene un comportamiento esperado declarado y verificable:
 - **FR-028**: El sistema MUST clasificar como destructivas exactamente estas acciones, y MUST pedir confirmación antes de ejecutarlas: cerrar la ventana activa (FR-021), y toda acción propia (FR-023) que no declare explícitamente `destructiva: false` en configuración. El resto del catálogo base (FR-014 a FR-020, FR-022) MUST ejecutarse sin confirmación.
 - **FR-054**: La configuración MUST permitir declarar la destructividad de cada acción propia. Ante ausencia de esa declaración, el sistema MUST tratar la acción como destructiva.
 - **FR-055**: El sistema MUST cancelar automáticamente una confirmación pendiente tras 10 segundos sin respuesta del usuario, sin ejecutar la acción y volviendo a reposo.
+- **FR-057**: La confirmación y la cancelación MUST poder realizarse indistintamente por dos canales, ambos activos durante toda la ventana de FR-055: (a) **teclado**, con una tecla dedicada para aceptar y otra para cancelar; (b) **voz**, con una palabra de aceptación y una de cancelación. Las cuatro entradas MUST declararse en configuración.
+- **FR-058**: Las palabras de confirmación y cancelación por voz MUST NOT coincidir con ninguna palabra que active una acción del catálogo ni con ningún alias declarado. El sistema MUST rechazar la configuración que las haga coincidir (FR-045).
+- **FR-059**: Cualquier entrada recibida durante la ventana de confirmación que no sea una de las cuatro declaradas en FR-057 MUST tratarse como no-respuesta: MUST NOT ejecutar la acción y MUST NOT reiniciar el plazo de 10 segundos.
+- **FR-060**: La ventana de confirmación forma parte del turno activado a efectos de FR-002: el sistema MUST mantener la captura de audio abierta mientras espera confirmación, y MUST cerrarla al resolverse o expirar la ventana.
 
 **Feedback al usuario**
 
 - **FR-029**: El sistema MUST exponer de forma observable su estado actual mientras está activo, distinguiendo al menos: en reposo, escuchando, procesando, ejecutando, esperando confirmación y error.
 - **FR-030**: El sistema MUST mostrar al usuario el texto que entendió y la acción que va a ejecutar, antes o durante la ejecución.
-- **FR-031**: El sistema MUST informar los errores distinguiendo al menos cuatro clases: no se entendió, acción desconocida, parámetro inválido y fallo al ejecutar.
+- **FR-031**: El sistema MUST informar los errores distinguiendo al menos cinco clases: no se entendió, acción desconocida, **intención ambigua**, parámetro inválido y fallo al ejecutar.
 - **FR-032**: El sistema MUST emitir una señal sonora breve al terminar el turno, distinta para éxito y para error, reconocible sin mirar la pantalla.
 - **FR-033**: El sistema MUST reportar el resultado de cada turno también por un canal no gráfico, de modo que la funcionalidad siga siendo observable sin interfaz.
 
@@ -343,6 +371,14 @@ Cada caso borde tiene un comportamiento esperado declarado y verificable:
 - **FR-047**: El usuario MUST poder consultar ese registro para entender por qué el asistente hizo o no hizo algo.
 - **FR-048**: El registro MUST permanecer en la máquina del usuario y MUST NOT enviarse a ningún destino externo.
 
+**Conjunto de frases de referencia**
+
+- **FR-063**: El conjunto de frases de referencia MUST contener al menos 300 entradas, con al menos 20 fraseos distintos por cada acción del catálogo y al menos 80 entradas marcadas "debe rechazarse".
+- **FR-064**: De los fraseos de cada acción, al menos 5 MUST estar en registro rioplatense con voseo o pronombre enclítico, y al menos 1 MUST incluir un nombre de aplicación o sitio en inglés dentro de la frase (FR-012).
+- **FR-065**: Las 80 entradas de rechazo MUST cubrir las cinco clases de FR-031, con al menos 10 entradas por clase.
+- **FR-066**: Cada entrada MUST declarar el texto de la frase y, o bien la acción y los parámetros esperados, o bien la marca "debe rechazarse" con su clase de rechazo esperada.
+- **FR-067**: La precisión de NFR-014 a NFR-016 MUST medirse ejecutando el conjunto completo por la vía de texto plano (FR-040) y comparando, entrada por entrada, la acción y los parámetros resueltos contra los esperados.
+
 **Robustez**
 
 - **FR-049**: El fallo de un componente MUST NOT terminar el proceso del asistente.
@@ -357,7 +393,7 @@ Cada caso borde tiene un comportamiento esperado declarado y verificable:
 - **Parámetro**: un dato tipado que una acción necesita. Atributos: nombre, tipo, obligatoriedad, rango o conjunto de valores válidos.
 - **Configuración del usuario**: la declaración de entorno. Contiene aplicaciones conocidas, sitios conocidos, acciones propias, alias, y el mapeo de atajos.
 - **Estado del asistente**: el valor observable del sistema en un momento dado, dentro del conjunto cerrado: reposo, escuchando, procesando, ejecutando, esperando confirmación, error.
-- **Frase de referencia**: un elemento del conjunto de prueba. Atributos: texto de la frase en español rioplatense, intención esperada y parámetros esperados, o la marca de que debe rechazarse.
+- **Frase de referencia**: un elemento del conjunto de prueba definido en FR-063 a FR-067. Atributos: texto de la frase en español rioplatense; y o bien la intención y los parámetros esperados, o bien la marca "debe rechazarse" junto con la clase de rechazo esperada (una de las cinco de FR-031).
 
 ### Non-Functional Requirements
 
@@ -397,6 +433,7 @@ Cada caso borde tiene un comportamiento esperado declarado y verificable:
 - **NFR-017**: El usuario MUST poder ejecutar cada acción del catálogo sin memorizar una sintaxis exacta: al menos 3 fraseos naturales distintos por acción MUST resolver correctamente.
 - **NFR-018**: El usuario MUST poder determinar el estado del asistente sin interrumpir su trabajo ni cambiar de ventana.
 - **NFR-019**: Una confirmación pendiente MUST expirar a los 10 segundos sin respuesta. El asistente MUST NOT quedar bloqueado en espera de confirmación más allá de ese plazo.
+- **NFR-020**: El estado `escuchando` MUST terminar en 20 segundos como máximo bajo cualquier condición de entrada, incluidas ausencia total de habla (10 s, FR-061) y audio continuo sin fin de habla detectado (20 s, FR-062). Ningún estado del asistente MUST carecer de salida acotada en el tiempo.
 
 ---
 
@@ -488,9 +525,11 @@ excluidas (Principio X), sin implementar ninguno.
   el gestor de ventanas disponible. No cubre el arranque del sistema ni la pantalla de login.
 - **Atajo de teclado**: el atajo global se registra a través del entorno de escritorio y se declara
   en configuración; el sistema no lo hardcodea (Principio XIII).
-- **Conjunto de frases de referencia**: existe y lo provee el usuario, con la intención y los
-  parámetros esperados por frase, incluidas las frases que deben rechazarse. Es la base de
-  NFR-014 a NFR-016 y de SC-002 a SC-004. Sin este conjunto, esos criterios no son verificables.
+- **Conjunto de frases de referencia**: lo provee el usuario y es un entregable de la feature, no
+  una precondición externa. Su composición está especificada en FR-063 a FR-067: al menos 300
+  entradas, 20 fraseos por acción y 80 de rechazo. Es la base de NFR-014 a NFR-016 y de SC-002 a
+  SC-004; sin él esos criterios no son verificables, y con menos de 100 entradas el umbral de
+  NFR-015 (<1%) no se distinguiría de cero.
 - **Idioma**: la entrada es español rioplatense, admitiendo nombres propios de aplicaciones y
   sitios en inglés. Ningún otro idioma está soportado.
 - **Espacios de trabajo**: el rango válido lo determina el entorno de escritorio del usuario y se
