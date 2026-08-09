@@ -6,8 +6,14 @@ Escenarios de validación con comandos concretos y resultado esperado. **Todos s
 laptop objetivo**, bajo la *carga de referencia* (navegador con 10 pestañas y editor con un
 proyecto cargado, sin compilación en curso), salvo los marcados como independientes de carga.
 
-Los escenarios están ordenados por dependencia. **Q0 y Q1 hay que correrlos antes de
-`/speckit-tasks`**: son los que cierran las dos compuertas amarillas del Constitution Check.
+**Qué se puede correr hoy y qué no.** `Q0`, `Q1a` y `Q1b` miden **herramientas de terceros** y no
+necesitan una sola línea de Eva: por eso son los que hay que correr **antes** de `/speckit-tasks`,
+para cerrar la decisión D-05 que el plan dejó abierta. De `Q2` en adelante son criterios de
+aceptación del sistema construido: definen qué va a significar "funciona" y **no son ejecutables
+hasta después de `/speckit-implement`**.
+
+Los comandos de Q1a y Q1b son comandos de terminal, no archivos del proyecto: no se crea código
+durante la planificación (Principio XVII).
 
 ---
 
@@ -34,34 +40,210 @@ está cumpliendo aunque el consumo medido parezca bajo.
 
 ---
 
-## Q1 · Medir los candidatos de transcripción — **bloqueante**
+## Q1a · Preparar la medición — una sola vez
 
-Cierra D-05, la única decisión abierta del plan. El protocolo completo está en
-[research.md § D-05](research.md). Resumen operativo:
+Nada de esto necesita código de Eva. Se miden **herramientas de terceros** para poder decidir cuál
+usar antes de escribir la primera línea. Todo vive fuera del repositorio, en `~/eva-medicion/`.
 
-```bash
-# 1. Grabar el corpus, una sola vez, reutilizado por los tres candidatos
-mkdir -p ~/eva-medicion/corpus
-pw-record --rate 16000 --channels 1 --format s16 ~/eva-medicion/corpus/01.wav
-```
+> Los nombres de paquetes y las URLs de modelos **no se pudieron verificar** al escribir este
+> documento. Confirmarlos en la máquina antes de dar por buena una descarga.
 
-Grabar 20 enunciados de 2 a 5 segundos tomados del conjunto de frases de referencia, al menos 5 con
-un nombre de aplicación o sitio en inglés (FR-064).
+### 1. Directorio de trabajo
 
 ```bash
-# 2. Por cada candidato: 3 corridas, se descarta la primera
-#    Medir RSS con smaps_rollup y CPU con pidstat, en paralelo a la transcripción
-/usr/bin/time -v <motor> ... 2>&1 | grep 'Maximum resident'
-grep Pss /proc/<pid>/smaps_rollup
-pidstat -p <pid> 1
+mkdir -p ~/eva-medicion/{corpus,resultados}
+cd ~/eva-medicion
 ```
 
-**Resultado esperado**: la tabla de research.md D-05 completa, con `t_transcripcion_ms` medido
-**desde el fin acústico del habla**, no desde el inicio del archivo. Aplicar después la regla de
-decisión de D-05, que elige sin criterio humano.
+### 2. whisper.cpp — candidatos B y C
 
-**Si ningún candidato alcanza el escalón 2**, no seguir a `/speckit-tasks`: aplicar la escalera de
-contingencia de D-05, en la que la calidad de transcripción se degrada **antes** que el umbral de
+```bash
+git clone https://github.com/ggml-org/whisper.cpp ~/eva-medicion/whisper.cpp
+cd ~/eva-medicion/whisper.cpp
+cmake -B build
+cmake --build build --config Release -j4
+```
+
+El binario queda en `build/bin/whisper-cli`. Verificar que exista antes de seguir.
+
+```bash
+# Ver qué modelos ofrece el script antes de bajar nada:
+./models/download-ggml-model.sh
+
+# Bajar base y small (nombres según lo que liste el comando anterior)
+./models/download-ggml-model.sh base
+./models/download-ggml-model.sh small
+```
+
+Si el script ya ofrece variantes cuantizadas (`base-q5_1`, `small-q5_1` o similares), usar esas
+directamente. Si solo ofrece las completas, cuantizar a mano:
+
+```bash
+./build/bin/quantize models/ggml-base.bin  models/ggml-base-q5_0.bin  q5_0
+./build/bin/quantize models/ggml-small.bin models/ggml-small-q5_0.bin q5_0
+```
+
+**El modelo debe quedar cuantizado**: la constitución lo exige (Principio VI) y sin cuantizar
+`small` no entra en el presupuesto de memoria.
+
+### 3. Vosk — candidato A
+
+```bash
+python -m venv ~/eva-medicion/venv
+~/eva-medicion/venv/bin/pip install vosk
+
+cd ~/eva-medicion
+wget https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip
+unzip vosk-model-small-es-0.42.zip
+```
+
+Verificar que el CLI quedó disponible:
+
+```bash
+~/eva-medicion/venv/bin/vosk-transcriber --help
+```
+
+Si ese binario no existe en la versión instalada, la alternativa es la API de Python; anotarlo y
+avisar, porque cambia cómo se invoca en Q1b.
+
+### 4. Grabar el corpus
+
+20 enunciados de 2 a 5 segundos, tomados del conjunto de frases de referencia (FR-063). **Al menos
+5 deben contener un nombre de aplicación o sitio en inglés** (FR-064), porque es el caso que más
+probablemente rompa un modelo chico cuantizado (riesgo R-06).
+
+```bash
+cd ~/eva-medicion/corpus
+for i in $(seq -w 1 20); do
+  echo ">>> Enunciado $i — Enter para grabar, Ctrl+C para cortar al terminar de hablar"
+  read
+  pw-record --rate 16000 --channels 1 --format s16 "$i.wav"
+done
+```
+
+Anotar en `~/eva-medicion/corpus/esperado.tsv` qué acción y parámetros espera cada uno. Sirve para
+la columna `aciertos` y es el germen del conjunto de referencia de FR-066:
+
+```
+01	abrir_app	app=terminal
+02	cambiar_espacio	espacio=3
+...
+```
+
+Grabar **una sola vez**: los tres candidatos se miden sobre el mismo audio, si no la comparación no
+vale.
+
+---
+
+## Q1b · Medir los tres candidatos — **bloqueante**
+
+Cierra D-05, la única decisión abierta del plan. Correr **bajo la carga de referencia**: navegador
+con 10 pestañas y editor con un proyecto cargado, sin compilación en curso. Sin esa condición los
+números no sirven, porque la máquina ociosa no es la máquina en la que Eva va a vivir.
+
+**Dos pasadas de descarte y dos de medición.** La primera pasada de cada motor calienta la caché de
+página del modelo; se descarta.
+
+### Formato de salida
+
+`/usr/bin/time` con formato explícito da tres de las seis métricas en una línea:
+
+```
+%e  segundos de reloj    %M  RSS máximo en KB    %P  porcentaje de CPU
+```
+
+### Candidato A — Vosk
+
+```bash
+cd ~/eva-medicion
+M=vosk-model-small-es-0.42
+V=~/eva-medicion/venv/bin/vosk-transcriber
+
+# Pasada de descarte
+for f in corpus/*.wav; do $V -m $M -i "$f" -o /dev/null; done >/dev/null 2>&1
+
+# Dos pasadas medidas
+for pasada in 1 2; do
+  for f in corpus/*.wav; do
+    /usr/bin/time -f "A\t$pasada\t$(basename $f)\t%e\t%M\t%P" \
+      $V -m $M -i "$f" -o "resultados/A-$(basename $f .wav).txt"
+  done
+done 2>&1 | tee resultados/A.tsv
+```
+
+### Candidatos B y C — whisper.cpp
+
+```bash
+cd ~/eva-medicion
+W=~/eva-medicion/whisper.cpp/build/bin/whisper-cli
+
+for cand in B:ggml-base-q5_0 C:ggml-small-q5_0; do
+  id=${cand%%:*}; modelo=${cand##*:}
+  MODEL=~/eva-medicion/whisper.cpp/models/$modelo.bin
+
+  # Descarte
+  for f in corpus/*.wav; do $W -m $MODEL -l es -t 2 -f "$f" -nt; done >/dev/null 2>&1
+
+  # Dos pasadas medidas
+  for pasada in 1 2; do
+    for f in corpus/*.wav; do
+      /usr/bin/time -f "$id\t$pasada\t$(basename $f)\t%e\t%M\t%P" \
+        $W -m $MODEL -l es -t 2 -f "$f" -nt -otxt -of "resultados/$id-$(basename $f .wav)"
+    done
+  done 2>&1 | tee resultados/$id.tsv
+done
+```
+
+`-t 2` limita a dos hilos, que es lo que cabe en el núcleo físico de NFR-004. Medir con más hilos
+daría un número que después no vas a poder sostener.
+
+### Tiempo de carga del modelo, por separado
+
+`t_carga_ms` no se distingue en las corridas de arriba porque cada invocación carga y transcribe.
+Se mide con un archivo de silencio de 0,2 s: el tiempo resultante es casi todo carga.
+
+```bash
+sox -n -r 16000 -c 1 resultados/silencio.wav trim 0 0.2 2>/dev/null || \
+  ffmpeg -f lavfi -i anullsrc=r=16000:cl=mono -t 0.2 resultados/silencio.wav
+
+/usr/bin/time -f "carga A\t%e" $V -m $M -i resultados/silencio.wav -o /dev/null
+/usr/bin/time -f "carga B\t%e" $W -m ~/eva-medicion/whisper.cpp/models/ggml-base-q5_0.bin  -l es -t 2 -f resultados/silencio.wav -nt
+/usr/bin/time -f "carga C\t%e" $W -m ~/eva-medicion/whisper.cpp/models/ggml-small-q5_0.bin -l es -t 2 -f resultados/silencio.wav -nt
+```
+
+### Hilos realmente usados
+
+```bash
+# En otra terminal, mientras corre una transcripción larga:
+watch -n0.2 'ps -o nlwp= -C whisper-cli; ps -o nlwp= -C python'
+```
+
+### Aciertos
+
+Comparar cada `resultados/<id>-NN.txt` contra `corpus/esperado.tsv`. Lo que se cuenta **no es la
+tasa de error de palabra sino si el texto resuelve a la acción esperada**: una transcripción con una
+tilde de menos que igual resuelve, cuenta como acierto. Es lo que le importa al producto.
+
+### Simplificación deliberada del tiempo de transcripción
+
+D-05 define `t_transcripcion_ms` como el tiempo **desde el fin acústico del habla**. Los comandos de
+arriba miden el **tiempo total** de cada invocación, que para un motor por lotes es lo mismo y para
+uno de streaming es un **techo superior**: Vosk decodifica mientras lee, así que su finalización
+real es menor que el total medido.
+
+Eso alcanza para decidir. Si el total de Vosk ya entra en el escalón preferente (≤ 400 ms), la
+finalización entra con más razón y no hace falta medir más fino. **Solo si Vosk queda en el borde**
+—entre 400 y 800 ms de total— hará falta un arnés que lo alimente por trozos y cronometre la
+finalización aparte. Se deja anotado para no descubrirlo en el momento.
+
+### Volcar en la tabla
+
+Completar la tabla de [research.md § D-05](research.md) con la mediana de las dos pasadas medidas y
+el p95 sobre los 40 valores por candidato. Después aplicar la **regla de decisión** de D-05, que
+elige sin criterio humano.
+
+**Si ningún candidato alcanza el escalón 2, no seguir a `/speckit-tasks`**: corresponde la escalera
+de contingencia de D-05, donde la calidad de transcripción se degrada **antes** que el umbral de
 latencia.
 
 ---

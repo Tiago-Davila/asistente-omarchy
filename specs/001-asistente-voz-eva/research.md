@@ -135,7 +135,7 @@ a stdout, leído por el daemon. La captura se cierra matando el hijo.
   pide el escenario US2-4.
 - *Latencia de arranque*: el fork/exec de `pw-record` es del orden de decenas de milisegundos y
   ocurre **al inicio del turno**, no al final del habla, así que queda fuera del presupuesto de
-  NFR-006. El arranque preciso se mide en Q1 del quickstart.
+  NFR-006. El arranque preciso se mide en Q1b del quickstart.
 
 **Alternativas consideradas**:
 
